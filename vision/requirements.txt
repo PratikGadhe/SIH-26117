@@ -2,3 +2,11 @@ ollama==0.4.0
 pillow==11.0.0
 python-dotenv==1.0.0
 requests==2.31.0
+pymupdf==1.24.10
+pytesseract==0.3.13
+opencv-python==4.10.0.84
+pydantic==2.9.2
+fastapi==0.115.0
+uvicorn==0.30.6
+langgraph==0.2.45
+python-multipart==0.0.9
