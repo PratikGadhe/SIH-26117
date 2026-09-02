@@ -94,7 +94,10 @@ class OllamaClient:
             response.raise_for_status()
             
             result = response.json()
-            return result.get("response", "")
+            resp_text = result.get("response", "").strip()
+            if not resp_text and "thinking" in result:
+                resp_text = result.get("thinking", "").strip()
+            return resp_text
         
         except requests.exceptions.Timeout:
             raise TimeoutError("Ollama inference timed out (>5 min). Check GPU memory and ensure Ollama is responsive.")
