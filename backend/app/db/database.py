@@ -71,6 +71,12 @@ def _add_role_column_to_phase_2_database(
 
 
 def _create_audit_schema(connection: sqlite3.Connection) -> None:
+    _create_audit_table(connection)
+    _upgrade_audit_event_constraint(connection)
+    _create_audit_indexes(connection)
+
+
+def _create_audit_table(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS audit_events (
@@ -88,6 +94,53 @@ def _create_audit_schema(connection: sqlite3.Connection) -> None:
         )
         """.format(AUDIT_EVENT_VALUES_SQL=AUDIT_EVENT_VALUES_SQL)
     )
+
+
+def _upgrade_audit_event_constraint(connection: sqlite3.Connection) -> None:
+    table = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ("audit_events",),
+    ).fetchone()
+    table_sql = table["sql"] if table is not None else ""
+    if all(event_type.value in table_sql for event_type in AuditEventType):
+        return
+
+    connection.execute(
+        "ALTER TABLE audit_events RENAME TO audit_events_previous"
+    )
+    _create_audit_table(connection)
+    connection.execute(
+        """
+        INSERT INTO audit_events (
+            id,
+            created_at,
+            event_type,
+            user_id,
+            username,
+            success,
+            resource,
+            action,
+            ip_address,
+            details
+        )
+        SELECT
+            id,
+            created_at,
+            event_type,
+            user_id,
+            username,
+            success,
+            resource,
+            action,
+            ip_address,
+            details
+        FROM audit_events_previous
+        """
+    )
+    connection.execute("DROP TABLE audit_events_previous")
+
+
+def _create_audit_indexes(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_audit_events_created_at

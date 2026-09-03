@@ -105,6 +105,52 @@ def record_authorization_denied(
     )
 
 
+def record_agent_execution_success(
+    connection: sqlite3.Connection,
+    *,
+    user_id: int,
+    username: str,
+    task_type: str,
+    resource: str,
+    action: str,
+    ip_address: str | None,
+) -> None:
+    _record_event(
+        connection,
+        event_type=AuditEventType.AGENT_EXECUTION_SUCCESS,
+        user_id=user_id,
+        username=username,
+        success=True,
+        resource=resource,
+        action=action,
+        ip_address=ip_address,
+        details={"task_type": task_type},
+    )
+
+
+def record_agent_execution_failure(
+    connection: sqlite3.Connection,
+    *,
+    user_id: int,
+    username: str,
+    error_category: str,
+    resource: str,
+    action: str,
+    ip_address: str | None,
+) -> None:
+    _record_event(
+        connection,
+        event_type=AuditEventType.AGENT_EXECUTION_FAILURE,
+        user_id=user_id,
+        username=username,
+        success=False,
+        resource=resource,
+        action=action,
+        ip_address=ip_address,
+        details={"error_category": error_category},
+    )
+
+
 def _record_event(
     connection: sqlite3.Connection,
     *,

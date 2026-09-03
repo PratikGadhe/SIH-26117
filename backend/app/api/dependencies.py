@@ -14,6 +14,7 @@ from app.core.security import InvalidAccessTokenError, decode_access_token
 from app.db.database import get_database
 from app.db.users import User, get_user_by_id
 from app.services.audit import record_authorization_denied
+from app.services.agent import AgentService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -31,6 +32,15 @@ def get_settings(request: Request) -> Settings:
 
 
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+def get_agent_service(request: Request) -> AgentService:
+    """Return the backend-owned service wrapping the configured agent."""
+
+    return request.app.state.agent_service
+
+
+AgentServiceDependency = Annotated[AgentService, Depends(get_agent_service)]
 
 
 def get_current_user(
