@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import directly from modules
-from src.vision_service import VisionService
+from vision.src.vision_service import VisionService
 import json
 
 
