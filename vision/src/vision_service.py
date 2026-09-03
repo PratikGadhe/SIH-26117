@@ -7,6 +7,7 @@ Exposes a simple interface: analyze_image(image, prompt)
 import io
 import json
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -207,22 +208,53 @@ class VisionService:
         pages: List[Dict[str, Any]] = []
         extracted_text: List[str] = []
 
-        if fitz is not None:
-            try:
-                doc = fitz.open(pdf_path)
-                for page_index in range(doc.page_count):
-                    page = doc[page_index]
-                    page_text = page.get_text("text").strip()
-                    extracted_text.append(page_text)
-                    pages.append({
-                        "page": page_index + 1,
-                        "text": page_text,
-                        "chars": len(page_text),
-                    })
-                doc.close()
-            except Exception as exc:  # pragma: no cover
-                pages = []
-                extracted_text = [str(exc)]
+        if fitz is None:
+            return {
+                "status": "error",
+                "error": "PyMuPDF is required for PDF processing",
+                "pdf_path": str(pdf_path),
+                "prompt": prompt,
+                "pages": [],
+                "page_count": 0,
+                "model": "qwen3-vl:4b",
+            }
+
+        try:
+            doc = fitz.open(pdf_path)
+            for page_index in range(doc.page_count):
+                page = doc[page_index]
+                page_text = page.get_text("text").strip()
+                page_result: Dict[str, Any] = {
+                    "page": page_index + 1,
+                    "text": page_text,
+                    "chars": len(page_text),
+                    "source": "native_text" if page_text else "vision_model",
+                }
+
+                if not page_text:
+                    # Scanned pages have no text layer, so render them before
+                    # sending them through the local vision model.
+                    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    with tempfile.NamedTemporaryFile(suffix=".png") as image_file:
+                        image_file.write(pixmap.tobytes("png"))
+                        image_file.flush()
+                        vision_result = self.analyze_image(
+                            image_file.name,
+                            prompt,
+                            return_json=True,
+                        )
+                    page_result["analysis"] = vision_result.get("analysis", "")
+                    page_result["structured"] = vision_result.get("structured", {})
+                    page_result["confidence"] = vision_result.get("confidence", 0.0)
+                    if vision_result.get("status") != "success":
+                        page_result["error"] = vision_result.get("error", "Vision analysis failed")
+
+                extracted_text.append(page_text or page_result.get("analysis", ""))
+                pages.append(page_result)
+            doc.close()
+        except Exception as exc:  # pragma: no cover
+            pages = []
+            extracted_text = [str(exc)]
 
         combined_text = "\n\n".join(part for part in extracted_text if part)
 
