@@ -1,17 +1,46 @@
 import os
+import json
 
 try:
     from src.text_chunker import create_document_chunks
     from src.embedder import create_embeddings
-    from src.vector_store import store_chunks
+    from src.vector_store import store_chunks,delete_document
 except ModuleNotFoundError:
     from text_chunker import create_document_chunks
     from embedder import create_embeddings
-    from vector_store import store_chunks
+    from vector_store import store_chunks,delete_document
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCUMENTS_DIR = os.path.join(BASE_DIR, "documents")
+
+# File used to remember which documents have already been processed
+STATE_FILE = os.path.join(BASE_DIR, "data", "processed_documents.json")
+
+
+def load_processed_documents():
+
+    if not os.path.exists(STATE_FILE):
+        return {}
+
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_processed_documents(processed_documents):
+
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+
+    with open(STATE_FILE, "w", encoding="utf-8") as file:
+        json.dump(
+            processed_documents,
+            file,
+            indent=4
+        )
 
 
 def process_document(file_path):
@@ -53,26 +82,52 @@ def process_document(file_path):
 
 def process_all_documents():
 
-    supported_files = []
+    supported_extensions = [".pdf", ".txt", ".docx"]
 
+    processed_documents = load_processed_documents()
+
+    current_documents = {}
+
+    # Find all supported documents
     for filename in os.listdir(DOCUMENTS_DIR):
 
         extension = os.path.splitext(filename)[1].lower()
 
-        if extension in [".pdf", ".txt", ".docx"]:
-            supported_files.append(filename)
+        if extension in supported_extensions:
 
-    if not supported_files:
+            file_path = os.path.join(
+                DOCUMENTS_DIR,
+                filename
+            )
+
+            # Get the last modified time of the file
+            modified_time = os.path.getmtime(file_path)
+
+            current_documents[filename] = modified_time
+
+    if not current_documents:
+
         print("No supported documents found.")
         return []
 
     print(
-        f"Found {len(supported_files)} document(s)."
+        f"Found {len(current_documents)} document(s)."
     )
 
     results = []
 
-    for filename in supported_files:
+    # Process only new or modified documents
+    for filename, modified_time in current_documents.items():
+
+        old_modified_time = processed_documents.get(filename)
+
+        if old_modified_time == modified_time:
+
+            print(
+                f"\nSkipping unchanged document: {filename}"
+            )
+
+            continue
 
         file_path = os.path.join(
             DOCUMENTS_DIR,
@@ -83,6 +138,26 @@ def process_all_documents():
 
         results.append(result)
 
+        # Remember that this version has been processed
+        processed_documents[filename] = modified_time
+
+    # Detect deleted documents
+    deleted_documents = set(processed_documents.keys()) - set(
+        current_documents.keys()
+    )
+
+    for filename in deleted_documents:
+
+        print(
+            f"\nDocument deleted from folder: {filename}"
+        )
+
+        # We will connect ChromaDB deletion here next.
+        delete_document(filename)
+        del processed_documents[filename]
+
+    save_processed_documents(processed_documents)
+
     return results
 
 
@@ -92,9 +167,15 @@ if __name__ == "__main__":
 
     print("\nDocument processing complete.")
 
-    for result in results:
+    if results:
 
-        print(
-            f"- {result['source']}: "
-            f"{result['chunks']} chunks"
-        )
+        for result in results:
+
+            print(
+                f"- {result['source']}: "
+                f"{result['chunks']} chunks"
+            )
+
+    else:
+
+        print("No new or modified documents to process.")

@@ -95,7 +95,7 @@ def rag_node(state: WorkbenchState) -> Dict[str, Any]:
     """
     user_query = state.get("user_query", "")
     vision_data = state.get("vision_data", {})
-    
+
     # Enrich search query with tags discovered by vision
     search_query = user_query
     if vision_data and "analysis" in vision_data:

@@ -18,7 +18,7 @@ def test_pure_sop_query():
     print("=" * 65, flush=True)
     print("TEST 1: Pure SOP / Safety Manual Query", flush=True)
     print("=" * 65, flush=True)
-    
+
     query = "What is the procedure for emergency shutdown of a distillation column?"
     print(f"Query: \"{query}\"\n", flush=True)
 
@@ -43,7 +43,7 @@ def test_hybrid_diagram_audit():
 
     sample_img = os.path.join(project_root, "vision", "tests", "sample_images", "test_diagram.png")
     query = "Inspect this schematic. What components are visible, and is the pump labeled correctly?"
-    
+
     print(f"Image: {sample_img}", flush=True)
     print(f"Query: \"{query}\"\n", flush=True)
 

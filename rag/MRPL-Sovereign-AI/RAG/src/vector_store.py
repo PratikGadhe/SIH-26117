@@ -44,6 +44,35 @@ def store_chunks(chunks, embeddings, source):
     print(f"Stored {len(chunks)} chunks in ChromaDB.")
 
 
+def delete_document(source):
+
+    """
+    Delete all chunks belonging to a document from ChromaDB.
+    """
+
+    results = collection.get(
+        where={"source": source}
+    )
+
+    ids = results.get("ids", [])
+
+    if ids:
+
+        collection.delete(
+            ids=ids
+        )
+
+        print(
+            f"Deleted {len(ids)} chunks for: {source}"
+        )
+
+    else:
+
+        print(
+            f"No ChromaDB chunks found for: {source}"
+        )
+
+
 # Test ChromaDB
 if __name__ == "__main__":
 
