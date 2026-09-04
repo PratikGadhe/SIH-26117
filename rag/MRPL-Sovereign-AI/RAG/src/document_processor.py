@@ -55,7 +55,6 @@ def process_document(file_path):
 
     if not chunks:
         print("No text found in document.")
-
         return {
             "source": source,
             "chunks": 0

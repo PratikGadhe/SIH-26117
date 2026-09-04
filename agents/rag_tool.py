@@ -1,44 +1,59 @@
-from typing import Any, Dict
-import sys
-import os
+"""
+RAG Tool Module for SIH 26117 Agents.
 
-RAG_SRC = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "rag",
-        "MRPL-Sovereign-AI",
-        "RAG",
-        "src"
-    )
+Bridges the local ChromaDB document search into a clean
+agent-friendly interface.
+"""
+
+import os
+import sys
+from typing import Any, Dict
+
+
+# Locate the RAG source directory.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+rag_src_path = os.path.join(
+    project_root,
+    "rag",
+    "MRPL-Sovereign-AI",
+    "RAG",
+    "src",
 )
 
-if RAG_SRC not in sys.path:
-    sys.path.insert(0, RAG_SRC)
+if rag_src_path not in sys.path:
+    sys.path.insert(0, rag_src_path)
 
 from search import search_documents
 
 
 def rag_tool(query: str, top_k: int = 3) -> Dict[str, Any]:
-    """Search the local MRPL knowledge base and return agent-friendly results."""
+    """
+    Search the local MRPL knowledge base.
 
+    Args:
+        query: The search query string.
+        top_k: Number of relevant snippets to retrieve.
+
+    Returns:
+        Dictionary containing search results and formatted context.
+    """
     try:
-        results = search_documents(query, top_k=top_k)
+        raw_results = search_documents(query, top_k=top_k)
 
-        sources = []
-
-        for result in results:
-            sources.append({
-                "content": result["content"],
-                "source": result["source"],
-                "page": result["page"],
-                "distance": result["distance"]
-            })
+        formatted_context = "\n\n".join(
+            f"[Source: {result.get('source', 'Unknown')} | "
+            f"Page {result.get('page', 'N/A')}]\n"
+            f"{result.get('content', '')}"
+            for result in raw_results
+        )
 
         return {
             "status": "success",
             "query": query,
-            "results": sources
+            "results": raw_results,
+            "context": formatted_context,
+            "engine": "ChromaDB + SentenceTransformers",
         }
 
     except Exception as exc:
@@ -46,5 +61,7 @@ def rag_tool(query: str, top_k: int = 3) -> Dict[str, Any]:
             "status": "error",
             "query": query,
             "results": [],
-            "error": str(exc)
+            "context": "",
+            "engine": "ChromaDB + SentenceTransformers",
+            "error": str(exc),
         }

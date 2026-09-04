@@ -9,10 +9,10 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from vision_service import VisionService
+from vision.src.vision_service import VisionService
 
 
-def test_vision_service():
+def run_vision_service_check():
     """Test basic vision service functionality"""
     
     print("\n" + "="*60)
@@ -51,5 +51,5 @@ def test_vision_service():
 
 
 if __name__ == "__main__":
-    success = test_vision_service()
+    success = run_vision_service_check()
     sys.exit(0 if success else 1)
