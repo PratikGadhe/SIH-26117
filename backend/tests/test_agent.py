@@ -25,6 +25,7 @@ TEST_JWT_SECRET = "phase-5-test-secret-that-is-at-least-32-characters"
 
 def successful_result(response: str = "Normalized answer") -> AgentResult:
     return AgentResult(
+        status="success",
         response=response,
         task_type="DIRECT_CHAT",
         citations=[AgentCitation(source="manual.pdf", page="4", distance=0.2)],
@@ -37,10 +38,15 @@ def successful_result(response: str = "Normalized answer") -> AgentResult:
 class FakeAgentRunner:
     def __init__(self, result: AgentResult | None = None) -> None:
         self.result = result or successful_result()
-        self.messages: list[str] = []
+        self.calls: list[tuple[str, str | None, str | None]] = []
 
-    def run(self, message: str) -> AgentResult:
-        self.messages.append(message)
+    def run(
+        self,
+        user_query: str,
+        image_path: str | None = None,
+        pdf_path: str | None = None,
+    ) -> AgentResult:
+        self.calls.append((user_query, image_path, pdf_path))
         return self.result
 
 
@@ -48,7 +54,12 @@ class FailingAgentRunner:
     def __init__(self, error_type: type[Exception]) -> None:
         self.error_type = error_type
 
-    def run(self, message: str) -> AgentResult:
+    def run(
+        self,
+        user_query: str,
+        image_path: str | None = None,
+        pdf_path: str | None = None,
+    ) -> AgentResult:
         raise self.error_type("internal subsystem detail")
 
 
@@ -115,12 +126,13 @@ def test_allowed_role_executes_agent(
     _, token = provision_token(settings, role)
 
     response = asyncio.run(
-        send_request(test_app, {"message": "Inspect the process"}, token)
+        send_request(test_app, {"user_query": "Inspect the process"}, token)
     )
 
     assert response.status_code == 200
-    assert runner.messages == ["Inspect the process"]
+    assert runner.calls == [("Inspect the process", None, None)]
     assert response.json() == {
+        "status": "success",
         "response": "Normalized answer",
         "task_type": "DIRECT_CHAT",
         "citations": [
@@ -138,9 +150,9 @@ def test_allowed_role_executes_agent(
     "payload",
     [
         {},
-        {"message": "   "},
-        {"message": "valid", "unsupported": "field"},
-        {"message": "x" * 10_001},
+        {"user_query": "   "},
+        {"user_query": "valid", "unsupported": "field"},
+        {"user_query": "x" * 10_001},
     ],
 )
 def test_agent_request_validation_prevents_execution(
@@ -154,7 +166,7 @@ def test_agent_request_validation_prevents_execution(
     response = asyncio.run(send_request(test_app, payload, token))
 
     assert response.status_code == 422
-    assert runner.messages == []
+    assert runner.calls == []
 
 
 @pytest.mark.parametrize("token", [None, "invalid-token"])
@@ -164,11 +176,11 @@ def test_agent_endpoint_requires_valid_authentication(
     token: str | None,
 ) -> None:
     response = asyncio.run(
-        send_request(test_app, {"message": "Run agent"}, token)
+        send_request(test_app, {"user_query": "Run agent"}, token)
     )
 
     assert response.status_code == 401
-    assert runner.messages == []
+    assert runner.calls == []
 
 
 def test_basic_user_is_forbidden_before_agent_execution(
@@ -179,12 +191,12 @@ def test_basic_user_is_forbidden_before_agent_execution(
     _, token = provision_token(settings, Role.USER)
 
     response = asyncio.run(
-        send_request(test_app, {"message": "Run agent"}, token)
+        send_request(test_app, {"user_query": "Run agent"}, token)
     )
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Insufficient permissions"}
-    assert runner.messages == []
+    assert runner.calls == []
 
 
 @pytest.mark.parametrize(
@@ -216,7 +228,11 @@ def test_agent_failures_are_normalized_and_audited(
     user_id, token = provision_token(settings, Role.OFFICER)
 
     response = asyncio.run(
-        send_request(application, {"message": "Confidential prompt"}, token)
+        send_request(
+            application,
+            {"user_query": "Confidential prompt"},
+            token,
+        )
     )
 
     assert response.status_code == expected_status
@@ -255,10 +271,19 @@ def test_adapter_normalizes_real_agent_contract_without_raw_state() -> None:
             "rag_data": {"internal": "discarded"},
         }
 
-    result = LangGraphAgentAdapter(workflow=workflow).run("Check SOP")
+    result = LangGraphAgentAdapter(workflow=workflow).run(
+        "Check SOP",
+        image_path="diagram.png",
+        pdf_path="manual.pdf",
+    )
 
-    assert received == {"user_query": "Check SOP"}
+    assert received == {
+        "user_query": "Check SOP",
+        "image_path": "diagram.png",
+        "pdf_path": "manual.pdf",
+    }
     assert result == AgentResult(
+        status="success",
         response="Safe answer",
         task_type="SOP_QUERY",
         citations=[AgentCitation(source="SOP.pdf", page="7", distance=0.15)],
@@ -286,6 +311,18 @@ def test_adapter_rejects_unknown_task_type() -> None:
         LangGraphAgentAdapter(workflow=workflow).run("Check SOP")
 
 
+def test_adapter_rejects_known_model_failure_sentinel() -> None:
+    def workflow(**kwargs):
+        return {
+            "status": "success",
+            "task_type": "DIRECT_CHAT",
+            "final_answer": "Report generation failed.",
+        }
+
+    with pytest.raises(AgentUnavailableError):
+        LangGraphAgentAdapter(workflow=workflow).run("Check status")
+
+
 def test_agent_success_audit_excludes_prompt_response_and_credentials(
     settings: Settings,
 ) -> None:
@@ -297,7 +334,7 @@ def test_agent_success_audit_excludes_prompt_response_and_credentials(
     user_id, token = provision_token(settings, Role.ADMIN)
 
     response = asyncio.run(
-        send_request(application, {"message": prompt}, token)
+        send_request(application, {"user_query": prompt}, token)
     )
 
     assert response.status_code == 200

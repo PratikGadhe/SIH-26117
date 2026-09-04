@@ -68,18 +68,19 @@ def vision_node(state: WorkbenchState) -> Dict[str, Any]:
     pdf_path = state.get("pdf_path")
     user_query = state.get("user_query", "")
 
-    vision_result = {}
-    if image_path and os.path.exists(image_path):
+    if image_path:
         vision_result = vision_tool(image_path, user_query)
-    elif pdf_path and os.path.exists(pdf_path):
+        input_type = "image"
+    elif pdf_path:
         vision_result = pdf_tool(pdf_path, user_query)
+        input_type = "PDF document"
     else:
-        vision_result = {"status": "skipped", "message": "No valid image/PDF file provided"}
+        raise RuntimeError("Vision input is invalid")
 
     step_entry = {
         "step": len(state.get("steps_log", [])) + 1,
         "agent": "Vision Agent (Qwen3-VL)",
-        "action": f"Inspected visual asset: {image_path or pdf_path}",
+        "action": f"Inspected {input_type}",
         "findings_summary": vision_result.get("analysis", "")[:200] + "..." if vision_result.get("analysis") else "Done"
     }
 

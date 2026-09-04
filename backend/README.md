@@ -27,10 +27,10 @@ workflow on top of the SQLite, JWT, RBAC, and audit foundations.
 
 The backend calls the existing synchronous public function
 `agents/agent_service.py::run_agentic_workflow(user_query, image_path=None,
-pdf_path=None)`. The adapter imports that entry point lazily, calls it with only
-the validated user message, and translates its result into backend-owned data
-objects. A normal backend startup therefore does not require LangGraph or load
-the compiled graph. Once loaded successfully, the callable is cached.
+pdf_path=None)`. The adapter preserves all three parameters, imports that entry
+point lazily, and translates its result into backend-owned data objects. A
+normal backend startup therefore does not require LangGraph or load the
+compiled graph. Once loaded successfully, the callable is cached.
 
 ```text
 FastAPI agent router
@@ -57,14 +57,15 @@ POST /api/v1/agent/run
 Authorization: Bearer <access_token>
 Content-Type: application/json
 
-{"message": "Summarize the maintenance procedure"}
+{"user_query": "Summarize the maintenance procedure"}
 ```
 
-`message` is trimmed, must be non-blank, and is limited to 10,000 characters.
+`user_query` is trimmed, must be non-blank, and is limited to 10,000 characters.
 Unknown request fields are rejected. A successful response has this shape:
 
 ```json
 {
+  "status": "success",
   "response": "...",
   "task_type": "SOP_QUERY",
   "citations": [
@@ -80,13 +81,15 @@ Unknown request fields are rejected. A successful response has this shape:
 
 This is a normalized subset of the teammate service response. Task type is
 restricted to the four values defined by the real agent state and router:
-`DIRECT_CHAT`, `HYBRID_AUDIT`, `SOP_QUERY`, and `VISION_INSPECTION`. Internal graph
-state, plans, vision data, RAG data, and raw errors are not returned. The
+`DIRECT_CHAT`, `HYBRID_AUDIT`, `SOP_QUERY`, and `VISION_INSPECTION`. Internal
+graph state, plans, vision data, RAG data, and raw errors are not returned. The
 current agent has no conversation/session mechanism, so the API does not
-invent a session identifier or database. Although the teammate entry point
-accepts server-side image and PDF paths, Phase 5 does not expose client-supplied
-filesystem paths or add uploads. Authenticated identity and credentials are
-not sent to the agent because its real interface does not consume them.
+invent a session identifier or database. The backend adapter preserves the
+agent's optional server-side `image_path` and `pdf_path` parameters, but the
+HTTP schema does not expose client-supplied filesystem paths. Those arguments
+remain `None` until a later upload/reference subsystem can provide trusted
+server-owned paths. Authenticated identity and credentials are not sent to the
+agent because its real interface does not consume them.
 
 The endpoint allows `admin`, `officer`, and `worker`. A missing or invalid JWT
 returns 401; an authenticated `user` returns 403 through the existing
@@ -111,11 +114,13 @@ selected route. These dependencies are intentionally not duplicated in
 The current backend virtual environment alone therefore returns a safe 503
 when the adapter cannot import the agent stack.
 
-The teammate service currently catches graph exceptions and returns an error
-dictionary, which the adapter normalizes. A downstream node may also encode a
-model failure inside a nominally successful final answer; the public interface
-does not expose enough structured information for the backend to distinguish
-that case reliably. Fixing that signal belongs at the agent-owned boundary.
+The teammate service catches graph exceptions and returns an error dictionary,
+which the adapter normalizes. Its synthesizer currently collapses model errors
+to the exact sentinel `Report generation failed.` while marking graph status
+as successful; the adapter treats that known sentinel as unavailable instead
+of returning false success. The public interface loses the original model
+error category in this case, so finer classification still requires an
+agent-owned contract improvement.
 
 ## Audit logging
 

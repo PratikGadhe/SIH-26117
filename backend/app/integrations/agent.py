@@ -8,7 +8,7 @@ from functools import lru_cache
 import importlib.util
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 WorkflowCallable = Callable[..., dict[str, Any]]
 AGENT_TASK_TYPES = frozenset(
@@ -54,6 +54,7 @@ class AgentStep:
 
 @dataclass(frozen=True)
 class AgentResult:
+    status: Literal["success"]
     response: str
     task_type: str
     citations: list[AgentCitation]
@@ -65,7 +66,12 @@ class AgentResult:
 class AgentRunner(Protocol):
     """Stable backend-facing contract implemented by agent adapters."""
 
-    def run(self, message: str) -> AgentResult:
+    def run(
+        self,
+        user_query: str,
+        image_path: str | None = None,
+        pdf_path: str | None = None,
+    ) -> AgentResult:
         """Execute one stateless agent request."""
 
 
@@ -75,10 +81,19 @@ class LangGraphAgentAdapter:
     def __init__(self, workflow: WorkflowCallable | None = None) -> None:
         self._workflow = workflow
 
-    def run(self, message: str) -> AgentResult:
+    def run(
+        self,
+        user_query: str,
+        image_path: str | None = None,
+        pdf_path: str | None = None,
+    ) -> AgentResult:
         workflow = self._workflow or _load_teammate_workflow()
         try:
-            raw_result = workflow(user_query=message)
+            raw_result = workflow(
+                user_query=user_query,
+                image_path=image_path,
+                pdf_path=pdf_path,
+            )
         except TimeoutError as exc:
             raise AgentTimeoutError("Agent execution timed out") from exc
         except AgentIntegrationError:
@@ -140,6 +155,8 @@ def _normalize_result(raw_result: object) -> AgentResult:
     task_type = raw_result.get("task_type")
     if not isinstance(response, str) or not response.strip():
         raise AgentExecutionError("Agent response is missing")
+    if response.strip() == "Report generation failed.":
+        raise AgentUnavailableError("Agent service is unavailable")
     if task_type not in AGENT_TASK_TYPES:
         raise AgentExecutionError("Agent task type is invalid")
 
@@ -148,6 +165,7 @@ def _normalize_result(raw_result: object) -> AgentResult:
         raise AgentExecutionError("Agent execution time is invalid")
 
     return AgentResult(
+        status="success",
         response=response.strip(),
         task_type=task_type,
         citations=_normalize_citations(raw_result.get("citations")),

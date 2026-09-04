@@ -41,7 +41,7 @@ def run_agent(
     """Execute one stateless request through the teammate LangGraph adapter."""
 
     try:
-        result = service.run(payload.message)
+        result = service.run(payload.user_query)
     except AgentTimeoutError as exc:
         _record_failure(connection, request, user, exc.audit_category)
         raise HTTPException(

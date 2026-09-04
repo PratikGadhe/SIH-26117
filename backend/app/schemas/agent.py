@@ -1,5 +1,7 @@
 """Stable request and response schemas for agent execution."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -8,15 +10,15 @@ class AgentRunRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    message: str = Field(min_length=1, max_length=10_000)
+    user_query: str = Field(min_length=1, max_length=10_000)
 
-    @field_validator("message")
+    @field_validator("user_query")
     @classmethod
-    def message_must_not_be_blank(cls, value: str) -> str:
-        message = value.strip()
-        if not message:
-            raise ValueError("Message must not be blank")
-        return message
+    def user_query_must_not_be_blank(cls, value: str) -> str:
+        user_query = value.strip()
+        if not user_query:
+            raise ValueError("User query must not be blank")
+        return user_query
 
 
 class AgentCitationResponse(BaseModel):
@@ -40,6 +42,7 @@ class AgentRunResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    status: Literal["success"]
     response: str
     task_type: str
     citations: list[AgentCitationResponse]
