@@ -6,6 +6,7 @@ Exposes a simple interface: analyze_image(image, prompt)
 
 import io
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
@@ -37,14 +38,23 @@ class VisionService:
         analyze_multi_image(image_paths, prompt) -> dict
     """
 
-    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+    def __init__(
+        self,
+        ollama_base_url: str | None = None,
+        model_name: str | None = None,
+        timeout: float | None = None,
+    ):
         """
         Initialize vision service
 
         Args:
             ollama_base_url: Ollama API endpoint
         """
-        self.client = OllamaClient(ollama_base_url)
+        self.client = OllamaClient(
+            base_url=ollama_base_url or os.getenv("OLLAMA_BASE_URL"),
+            model_name=model_name or os.getenv("OLLAMA_MODEL"),
+            timeout=timeout,
+        )
 
         if not self.client.is_available():
             raise RuntimeError(
@@ -64,10 +74,21 @@ class VisionService:
         Analyze an image using Qwen3-VL vision model.
         """
         try:
-            if not image_path or not Path(image_path).exists():
+            if not image_path or not Path(image_path).is_file():
                 return {
                     "status": "error",
                     "error": f"Image not found: {image_path}",
+                    "image_path": str(image_path),
+                    "prompt": prompt,
+                }
+
+            try:
+                with Image.open(image_path) as image:
+                    image.verify()
+            except Exception as exc:
+                return {
+                    "status": "error",
+                    "error": f"Invalid image: {exc}",
                     "image_path": str(image_path),
                     "prompt": prompt,
                 }

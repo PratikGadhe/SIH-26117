@@ -5,6 +5,7 @@ Handles connection, image encoding, and inference
 
 import base64
 import json
+import os
 import requests
 from typing import Optional
 from pathlib import Path
@@ -12,16 +13,26 @@ from pathlib import Path
 class OllamaClient:
     """Wrapper around Ollama API for vision model inference"""
     
-    def __init__(self, base_url: str = "http://localhost:11434"):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        model_name: str | None = None,
+        timeout: float | None = None,
+    ):
         """
         Initialize Ollama client
         
         Args:
             base_url: Ollama API endpoint (default: localhost:11434)
         """
-        self.base_url = base_url
-        self.model = "qwen3-vl:4b"
-        self.api_endpoint = f"{base_url}/api/generate"
+        self.base_url = (base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+        self.model = model_name or os.getenv("OLLAMA_MODEL", "qwen3-vl:4b")
+        configured_timeout = os.getenv("TIMEOUT", "120")
+        try:
+            self.timeout = timeout if timeout is not None else float(configured_timeout)
+        except ValueError:
+            self.timeout = 120.0
+        self.api_endpoint = f"{self.base_url}/api/generate"
         
     def is_available(self) -> bool:
         """Check if Ollama service is running"""
@@ -89,7 +100,7 @@ class OllamaClient:
             response = requests.post(
                 self.api_endpoint,
                 json=request_data,
-                timeout=300  # 5 minutes for vision inference
+                timeout=self.timeout,
             )
             response.raise_for_status()
             
