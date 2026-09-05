@@ -15,6 +15,76 @@
   background: #f7f8f3;
 }
 
+/* Phase 9A integration states */
+.header-status-dot.unavailable {
+  background: #dc2626;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.pending-feature-page {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+}
+
+.pending-feature-card {
+  width: min(680px, 100%);
+  padding: 42px;
+  border: 1px solid #dce3ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(15, 32, 54, 0.07);
+}
+
+.pending-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 20px;
+  border-radius: 13px;
+  color: #9a6700;
+  background: #fff7d6;
+}
+
+.pending-feature-label {
+  color: #9a6700;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.pending-feature-card h1 {
+  margin: 8px 0 10px;
+  color: #11253d;
+}
+
+.pending-feature-card > p {
+  color: #64748b;
+  line-height: 1.65;
+}
+
+.pending-feature-requirement {
+  display: flex;
+  gap: 10px;
+  margin: 24px 0;
+  padding: 14px;
+  border-radius: 9px;
+  color: #334155;
+  background: #f6f8fb;
+}
+
+.pending-feature-requirement svg { flex: 0 0 auto; color: #0067b8; }
+.pending-feature-card > a { color: #0067b8; font-weight: 800; }
+
 
 /* =========================================================
    SIDEBAR

@@ -16,27 +16,27 @@ function Dashboard() {
   const stats = [
     {
       title: "Documents",
-      value: "24",
+      value: "—",
       icon: <FileText size={24} />,
-      description: "Processed documents",
+      description: "No document metrics API",
     },
     {
       title: "AI Tasks",
-      value: "12",
+      value: "—",
       icon: <Bot size={24} />,
-      description: "Completed tasks",
+      description: "No task history API",
     },
     {
       title: "Generated Files",
-      value: "18",
+      value: "—",
       icon: <FolderOpen size={24} />,
-      description: "AI generated files",
+      description: "No generated-files API",
     },
     {
       title: "Knowledge Sources",
-      value: "156",
+      value: "—",
       icon: <Database size={24} />,
-      description: "Indexed sources",
+      description: "No knowledge metrics API",
     },
   ];
 
@@ -49,15 +49,15 @@ function Dashboard() {
     },
     {
       title: "Analyze Document",
-      description: "Upload and analyze documents",
+      description: "Pending secure upload support",
       icon: <FileText size={25} />,
       path: "/documents",
     },
     {
-      title: "Knowledge Base",
-      description: "Search internal knowledge",
-      icon: <Database size={25} />,
-      path: "/knowledge",
+      title: "Generated Files",
+      description: "Pending deliverable APIs",
+      icon: <FolderOpen size={25} />,
+      path: "/files",
     },
   ];
 
@@ -120,7 +120,7 @@ function Dashboard() {
             <h2>System Overview</h2>
 
             <p>
-              Current activity across your ASTRA environment.
+              Live metrics will appear when corresponding backend APIs exist.
             </p>
           </div>
 
@@ -258,7 +258,7 @@ function Dashboard() {
 
             <span className="status-dot"></span>
 
-            System Secure
+                Authentication enabled
 
           </div>
 
@@ -280,7 +280,7 @@ function Dashboard() {
               </span>
 
               <strong>
-                0
+                Not reported
               </strong>
 
             </div>
@@ -301,7 +301,7 @@ function Dashboard() {
               </span>
 
               <strong>
-                0
+                Not reported
               </strong>
 
             </div>
@@ -322,7 +322,7 @@ function Dashboard() {
               </span>
 
               <strong>
-                0
+                Not reported
               </strong>
 
             </div>
@@ -343,7 +343,7 @@ function Dashboard() {
               </span>
 
               <strong>
-                3
+                Not reported
               </strong>
 
             </div>

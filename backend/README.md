@@ -292,6 +292,40 @@ uvicorn app.main:app --reload
 If `python3` already points to Python 3.11 or newer, it can replace
 `python3.11`.
 
+### Development worker account
+
+Public registration intentionally creates only the basic `user` role, which
+cannot execute agent tasks. For local development, an explicit provisioning
+command can create a least-privileged `worker` account without changing that
+policy.
+
+From `backend/`, activate the virtual environment and run:
+
+```bash
+export COGNIVAULT_ENABLE_DEV_PROVISIONING=1
+python scripts/provision_development_worker.py --username local-worker
+unset COGNIVAULT_ENABLE_DEV_PROVISIONING
+```
+
+The command prompts for the password without echoing it. It uses the database
+selected by `COGNIVAULT_DATABASE_PATH`, or the normal local database when that
+variable is unset. It refuses duplicate usernames, never prints the password,
+creates exactly the `worker` role, and writes a safe registration audit event.
+
+For non-interactive local automation, the password may be supplied temporarily
+through `COGNIVAULT_DEV_PASSWORD`. Do not put its value in a committed file or
+shell history, and unset it immediately after provisioning:
+
+```bash
+read -s COGNIVAULT_DEV_PASSWORD
+export COGNIVAULT_DEV_PASSWORD COGNIVAULT_ENABLE_DEV_PROVISIONING=1
+python scripts/provision_development_worker.py --username local-worker
+unset COGNIVAULT_DEV_PASSWORD COGNIVAULT_ENABLE_DEV_PROVISIONING
+```
+
+This command is development-only and should not be used as a production
+identity-administration workflow.
+
 Documentation is available at:
 
 - Swagger UI: <http://127.0.0.1:8000/docs>

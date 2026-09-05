@@ -45,6 +45,12 @@ function MainLayout() {
         "View and manage ASTRA-generated deliverables",
     },
 
+    "/chatbot": {
+      title: "ASTRA Assistant",
+      description:
+        "Conversation mode is not connected in Phase 9A",
+    },
+
   };
 
   const currentPage =

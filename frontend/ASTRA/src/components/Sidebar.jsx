@@ -3,14 +3,11 @@ import {
   LayoutDashboard,
   Bot,
   FileText,
-  Database,
-  Cpu,
   FolderOpen,
   ShieldCheck,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
-import { MessageSquare } from "lucide-react";
 
 function Sidebar() {
   const menuItems = [
@@ -30,24 +27,9 @@ function Sidebar() {
       icon: <FileText size={20} />,
     },
     {
-      name: "Knowledge Base",
-      path: "/knowledge",
-      icon: <Database size={20} />,
-    },
-    {
-      name: "Agent Execution",
-      path: "/agent",
-      icon: <Cpu size={20} />,
-    },
-    {
       name: "Generated Files",
       path: "/files",
       icon: <FolderOpen size={20} />,
-    },
-    {
-      name: "Chatbot",
-      path: "/chatbot",
-      icon: <MessageSquare size={20} />,
     },
   ];
 
@@ -97,11 +79,11 @@ function Sidebar() {
 
         <div className="local-mode">
           <span className="local-mode-dot"></span>
-          <span>Local Mode</span>
+          <span>Local API</span>
         </div>
 
         <div className="system-secured">
-          System secured
+          Authenticated session
         </div>
 
       </div>

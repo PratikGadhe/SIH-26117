@@ -8,6 +8,11 @@
     margin: 0 auto;
 }
 
+.pending-upload-zone {
+  cursor: not-allowed;
+  opacity: .78;
+}
+
 /* HERO */
 
 .document-hero {

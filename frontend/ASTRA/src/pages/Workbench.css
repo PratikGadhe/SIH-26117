@@ -8,6 +8,56 @@
     margin: 0 auto;
 }
 
+/* Real Phase 9A API integration */
+.integration-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid #f4d58d;
+  border-radius: 10px;
+  color: #713f12;
+  background: #fffbeb;
+}
+
+.integration-notice svg { flex: 0 0 auto; }
+.integration-notice div { display: grid; gap: 3px; }
+.integration-notice span { font-size: 13px; line-height: 1.5; }
+.connected-workbench-grid, .result-detail-grid { align-items: stretch; }
+.prompt-card form { display: grid; gap: 12px; }
+
+.workbench-error {
+  display: flex;
+  gap: 9px;
+  margin-top: 15px;
+  padding: 12px;
+  border-radius: 8px;
+  color: #9f1239;
+  background: #fff1f2;
+}
+
+.workbench-error svg { flex: 0 0 auto; }
+.result-placeholder { min-height: 230px; display: grid; place-content: center; gap: 9px; text-align: center; color: #94a3b8; }
+.result-placeholder svg { margin: auto; }
+.result-placeholder strong { color: #475569; }
+.agent-result { display: grid; gap: 20px; }
+.agent-answer { margin: 0; color: #26384d; line-height: 1.75; white-space: pre-wrap; }
+.agent-result-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.agent-result-meta span { display: flex; align-items: center; gap: 5px; padding: 7px 9px; border-radius: 7px; color: #475569; background: #f1f5f9; font-size: 12px; }
+.result-detail-grid { margin-top: 22px; }
+.connected-list { display: grid; gap: 10px; margin-top: 20px; }
+.connected-list > div { display: grid; gap: 5px; padding: 11px 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.connected-list strong { display: flex; align-items: center; gap: 5px; color: #26384d; font-size: 13px; }
+.connected-list span { color: #64748b; font-size: 12px; }
+.conversation-result { display: grid; gap: 13px; }
+.conversation-message { max-width: 92%; padding: 13px 15px; border-radius: 12px; }
+.conversation-message > strong { color: #334155; font-size: 12px; }
+.conversation-message > p { margin: 6px 0 0; line-height: 1.65; }
+.user-message { justify-self: end; color: #fff; background: #0067b8; }
+.user-message > strong { color: #dbeafe; }
+.astra-message { justify-self: start; color: #334155; background: #f1f5f9; }
+
 /* INTRO */
 
 .workbench-intro {

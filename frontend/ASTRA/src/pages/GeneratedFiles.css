@@ -6,6 +6,17 @@
     position: relative;
 }
 
+.truthful-file-empty {
+  min-height: 300px;
+  padding: 32px;
+  text-align: center;
+}
+
+.truthful-file-empty span {
+  max-width: 520px;
+  line-height: 1.6;
+}
+
 .gf-hero {
     background: #687b35;
     color: #fff;

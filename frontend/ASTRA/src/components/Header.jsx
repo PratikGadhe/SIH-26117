@@ -1,11 +1,31 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  WifiOff,
   Cpu,
   Bell,
+  LogOut,
+  Server,
 } from "lucide-react";
+import { useAuth } from "../auth/useAuth";
+import { getHealth } from "../services/api";
 
 function Header({ title, description }) {
+  const { user, logout } = useAuth();
+  const [backendAvailable, setBackendAvailable] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getHealth()
+      .then(() => {
+        if (active) setBackendAvailable(true);
+      })
+      .catch(() => {
+        if (active) setBackendAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <header className="header">
 
@@ -25,24 +45,34 @@ function Header({ title, description }) {
       <div className="header-right">
 
         <div className="header-status">
-          <span className="header-status-dot"></span>
-          <WifiOff size={14} />
-          Offline
+          <span className={`header-status-dot ${backendAvailable === false ? "unavailable" : ""}`}></span>
+          <Server size={14} />
+          {backendAvailable === null
+            ? "Checking API"
+            : backendAvailable
+              ? "Backend online"
+              : "Backend unavailable"}
         </div>
 
         <div className="header-status">
-          <span className="header-status-dot"></span>
           <Cpu size={14} />
-          GPU Ready
+          Model runtime not reported
         </div>
 
         <button className="notification-btn">
           <Bell size={18} />
         </button>
 
-        <div className="user-avatar">
-          SA
+        <div className="header-user" title={`${user?.username} (${user?.role})`}>
+          <div className="user-avatar">
+            {user?.username?.slice(0, 2).toUpperCase() || "--"}
+          </div>
+          <span>{user?.role}</span>
         </div>
+
+        <button className="notification-btn" onClick={logout} title="Sign out" aria-label="Sign out">
+          <LogOut size={18} />
+        </button>
 
       </div>
 

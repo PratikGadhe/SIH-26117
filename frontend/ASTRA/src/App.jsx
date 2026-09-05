@@ -6,14 +6,14 @@ import {
 } from "react-router-dom";
 
 import MainLayout from "./layout/MainLayout";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import Dashboard from "./pages/Dashboard";
-import Workbench from "./pages/Workbench";
 import DocumentAnalysis from "./pages/DocumentAnalysis";
-import KnowledgeBase from "./pages/KnowledgeBase";
-import AgentExecution from "./pages/AgentExecution";
 import GeneratedFiles from "./pages/GeneratedFiles";
-import Chatbot from "./pages/Chatbot";
+import Workbench from "./pages/Workbench";
+import Login from "./pages/Login";
+import UnavailableFeature from "./pages/UnavailableFeature";
 
 
 function App() {
@@ -21,8 +21,10 @@ function App() {
     <BrowserRouter>
 
       <Routes>
+        <Route path="/login" element={<Login />} />
 
-        <Route element={<MainLayout />}>
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
 
           <Route
             path="/"
@@ -41,12 +43,24 @@ function App() {
 
           <Route
             path="/knowledge"
-            element={<KnowledgeBase />}
+            element={(
+              <UnavailableFeature
+                title="Knowledge Base Management"
+                description="The previous document counts, uploads, and search results were frontend-only sample data."
+                requirement="document catalog, controlled ingestion, and authenticated retrieval APIs"
+              />
+            )}
           />
 
           <Route
             path="/agent"
-            element={<AgentExecution />}
+            element={(
+              <UnavailableFeature
+                title="Agent Execution Monitor"
+                description="The previous timeline and tool calls were timer-driven and did not represent backend execution."
+                requirement="execution event or job-status APIs; text execution is available in the Workbench"
+              />
+            )}
           />
 
           <Route
@@ -56,9 +70,16 @@ function App() {
 
           <Route
             path="/chatbot"
-            element={<Chatbot />}
+            element={(
+              <UnavailableFeature
+                title="Chat Assistant"
+                description="The previous chat conversation and tool activity were simulated. Use the connected stateless Workbench instead."
+                requirement="conversation/session persistence if a multi-turn chat experience is required"
+              />
+            )}
           />
 
+          </Route>
         </Route>
 
       </Routes>

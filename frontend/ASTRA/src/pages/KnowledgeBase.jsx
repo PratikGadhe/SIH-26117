@@ -10,8 +10,7 @@ import {
   CheckCircle2,
   Server,
   Layers3,
-  ArrowDown,
-  Trash2
+  ArrowDown
 } from "lucide-react";
 
 import "./KnowledgeBase.css";
