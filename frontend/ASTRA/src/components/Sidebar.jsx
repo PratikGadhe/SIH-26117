@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
+import { MessageSquare } from "lucide-react";
 
 function Sidebar() {
   const menuItems = [
@@ -42,6 +43,11 @@ function Sidebar() {
       name: "Generated Files",
       path: "/files",
       icon: <FolderOpen size={20} />,
+    },
+    {
+      name: "Chatbot",
+      path: "/chatbot",
+      icon: <MessageSquare size={20} />,
     },
   ];
 
