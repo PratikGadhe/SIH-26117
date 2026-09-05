@@ -13,6 +13,8 @@ import DocumentAnalysis from "./pages/DocumentAnalysis";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import AgentExecution from "./pages/AgentExecution";
 import GeneratedFiles from "./pages/GeneratedFiles";
+import Chatbot from "./pages/Chatbot";
+
 
 function App() {
   return (
@@ -50,6 +52,11 @@ function App() {
           <Route
             path="/files"
             element={<GeneratedFiles />}
+          />
+
+          <Route
+            path="/chatbot"
+            element={<Chatbot />}
           />
 
         </Route>
