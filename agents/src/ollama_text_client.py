@@ -18,7 +18,7 @@ class OllamaTextClient:
         self,
         base_url: str = "http://localhost:11434",
         model_name: str = "qwen3:4b",
-        timeout: int = 120
+        timeout: int = 300,
     ):
         """
         Initialize the local Ollama text client.
@@ -60,7 +60,11 @@ class OllamaTextClient:
             for m in models:
                 if self.model in m:
                     return {"model": m, "status": "available"}
-            return {"model": self.model, "status": "not_found", "available_models": models}
+            return {
+                "model": self.model,
+                "status": "not_found",
+                "available_models": models,
+            }
         except Exception as e:
             return {"error": str(e)}
 
@@ -71,7 +75,7 @@ class OllamaTextClient:
         temperature: float = 0.2,
         top_p: float = 0.9,
         max_tokens: Optional[int] = None,
-        stream: bool = False
+        stream: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate text completion from the local Qwen model.
@@ -90,31 +94,27 @@ class OllamaTextClient:
         if not self.is_available():
             return {
                 "status": "error",
-                "error": "Ollama service is not running. Please run 'brew services start ollama' or 'ollama serve'."
+                "error": "Ollama service is not running. Please run 'brew services start ollama' or 'ollama serve'.",
             }
 
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             "stream": stream,
-            "options": {
-                "temperature": temperature,
-                "top_p": top_p
-            }
+            "options": {"temperature": temperature, "top_p": top_p},
         }
 
         if system_prompt:
             payload["system"] = system_prompt
 
-        if max_tokens:
-            payload["options"]["num_predict"] = max_tokens
+        # Bound generation length so local Apple Silicon inference finishes promptly
+        limit = max_tokens if max_tokens is not None else 768
+        payload["options"]["num_predict"] = limit
 
         start_time = time.time()
         try:
             response = requests.post(
-                self.api_generate_url,
-                json=payload,
-                timeout=self.timeout
+                self.api_generate_url, json=payload, timeout=self.timeout
             )
             response.raise_for_status()
             data = response.json()
@@ -134,38 +134,35 @@ class OllamaTextClient:
                 "eval_duration_ns": data.get("eval_duration", 0),
                 "tokens_per_second": round(
                     data.get("eval_count", 0) / (data.get("eval_duration", 1) / 1e9), 1
-                ) if data.get("eval_duration") else 0
+                )
+                if data.get("eval_duration")
+                else 0,
             }
 
         except requests.exceptions.Timeout:
-            return {"status": "error", "error": f"Inference timed out after {self.timeout} seconds."}
+            return {
+                "status": "error",
+                "error": f"Inference timed out after {self.timeout} seconds.",
+            }
         except Exception as e:
             return {"status": "error", "error": f"Inference failed: {str(e)}"}
 
     def generate_json(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        temperature: float = 0.1
+        self, prompt: str, system_prompt: Optional[str] = None, temperature: float = 0.1
     ) -> Dict[str, Any]:
         """
         Force the model to return valid structured JSON.
         Crucial for LangGraph routing, tool decisions, and task planning.
         """
         if not self.is_available():
-            return {
-                "status": "error",
-                "error": "Ollama service is not running."
-            }
+            return {"status": "error", "error": "Ollama service is not running."}
 
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
             "format": "json",
-            "options": {
-                "temperature": temperature
-            }
+            "options": {"temperature": temperature, "num_predict": 512},
         }
         if system_prompt:
             payload["system"] = system_prompt
@@ -173,9 +170,7 @@ class OllamaTextClient:
         start_time = time.time()
         try:
             response = requests.post(
-                self.api_generate_url,
-                json=payload,
-                timeout=self.timeout
+                self.api_generate_url, json=payload, timeout=self.timeout
             )
             response.raise_for_status()
             data = response.json()
@@ -192,10 +187,11 @@ class OllamaTextClient:
                 "status": "success",
                 "model": self.model,
                 "json_data": parsed_json,
-                "elapsed_seconds": elapsed_time
+                "elapsed_seconds": elapsed_time,
             }
         except json.JSONDecodeError:
             import re
+
             match = re.search(r"\{.*\}", resp_text, flags=re.DOTALL)
             if match:
                 try:
@@ -203,7 +199,7 @@ class OllamaTextClient:
                         "status": "success",
                         "model": self.model,
                         "json_data": json.loads(match.group(0)),
-                        "elapsed_seconds": elapsed_time
+                        "elapsed_seconds": elapsed_time,
                     }
                 except Exception:
                     pass

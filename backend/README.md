@@ -326,6 +326,16 @@ unset COGNIVAULT_DEV_PASSWORD COGNIVAULT_ENABLE_DEV_PROVISIONING
 This command is development-only and should not be used as a production
 identity-administration workflow.
 
+To update or reset the password for an existing development worker account, add
+`--reset-password`:
+
+```bash
+export COGNIVAULT_ENABLE_DEV_PROVISIONING=1
+python scripts/provision_development_worker.py --username local-worker --reset-password
+unset COGNIVAULT_ENABLE_DEV_PROVISIONING
+```
+
+
 Documentation is available at:
 
 - Swagger UI: <http://127.0.0.1:8000/docs>

@@ -16,7 +16,16 @@ from app.core.config import Settings
 from app.core.roles import Role
 from app.core.security import hash_password
 from app.db.database import connect_database, initialize_database
-from app.db.users import DuplicateUsernameError, User, create_user
+from app.db.users import (
+    DuplicateUsernameError,
+    User,
+    create_user,
+    get_user_by_id,
+    get_user_by_username,
+    set_user_active,
+    set_user_role,
+    update_password_hash,
+)
 from app.services.audit import record_registration_success
 
 ENABLE_VALUE = "1"
@@ -32,8 +41,9 @@ def provision_development_worker(
     database_path: Path,
     username: str,
     password: str,
+    reset_password: bool = False,
 ) -> User:
-    """Create one worker without weakening the public registration policy."""
+    """Create or reset one worker without weakening the public registration policy."""
 
     normalized_username = username.strip()
     if not normalized_username or len(normalized_username) > 64:
@@ -48,6 +58,30 @@ def provision_development_worker(
     initialize_database(database_path)
     connection = connect_database(database_path)
     try:
+        existing_user = get_user_by_username(connection, normalized_username)
+        if existing_user is not None:
+            if not reset_password:
+                raise DuplicateUsernameError("Username already exists")
+            update_password_hash(
+                connection,
+                existing_user.id,
+                hash_password(password),
+            )
+            set_user_active(connection, existing_user.id, True)
+            set_user_role(connection, existing_user.id, Role.WORKER)
+            user = get_user_by_id(connection, existing_user.id)
+            if user is None:
+                raise RuntimeError("Updated user could not be loaded")
+            record_registration_success(
+                connection,
+                user_id=user.id,
+                username=user.username,
+                resource="local-development-provisioning",
+                action="RESET_WORKER_PASSWORD",
+                ip_address=None,
+            )
+            return user
+
         user = create_user(
             connection,
             normalized_username,
@@ -84,6 +118,11 @@ def main() -> int:
         description="Create a local worker account for Cognivault development."
     )
     parser.add_argument("--username", required=True)
+    parser.add_argument(
+        "--reset-password",
+        action="store_true",
+        help="Update the password if the development worker account already exists.",
+    )
     arguments = parser.parse_args()
 
     if os.getenv(ENABLE_VARIABLE) != ENABLE_VALUE:
@@ -97,14 +136,18 @@ def main() -> int:
             Settings.from_environment().database_path,
             arguments.username,
             _read_password(),
+            reset_password=arguments.reset_password,
         )
     except DuplicateUsernameError:
-        parser.error("That username already exists; choose another username.")
+        parser.error(
+            "That username already exists; use --reset-password to update its password."
+        )
     except DevelopmentAccountInputError as exc:
         parser.error(str(exc))
 
+    action_label = "updated" if arguments.reset_password else "created"
     print(
-        f"Development account created for {user.username!r} "
+        f"Development account {action_label} for {user.username!r} "
         f"with role {user.role.value!r}."
     )
     return 0
