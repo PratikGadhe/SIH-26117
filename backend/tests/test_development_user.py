@@ -123,3 +123,71 @@ def test_command_provisions_without_printing_password(tmp_path: Path) -> None:
     assert "worker" in result.stdout
     assert password not in result.stdout
     assert password not in result.stderr
+
+
+def test_provision_development_worker_resets_password_when_requested(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "development.db"
+    first_password = secrets.token_urlsafe(24)
+    second_password = secrets.token_urlsafe(24)
+
+    first_user = provision_development_worker(
+        database_path, "local-worker", first_password
+    )
+    assert first_user.role is Role.WORKER
+
+    updated_user = provision_development_worker(
+        database_path, "local-worker", second_password, reset_password=True
+    )
+    assert updated_user.id == first_user.id
+    assert updated_user.role is Role.WORKER
+
+    with connect_database(database_path) as connection:
+        stored = get_user_by_username(connection, "local-worker")
+        records = list_audit_records(connection, limit=10, offset=0)
+
+    assert stored is not None
+    assert verify_password(second_password, stored.password_hash)
+    assert not verify_password(first_password, stored.password_hash)
+    assert len(records) == 2
+    assert records[0].action == "RESET_WORKER_PASSWORD"
+
+
+def test_command_resets_password_with_flag(tmp_path: Path) -> None:
+    database_path = tmp_path / "development.db"
+    first_password = secrets.token_urlsafe(24)
+    second_password = secrets.token_urlsafe(24)
+
+    provision_development_worker(database_path, "local-worker", first_password)
+
+    environment = os.environ.copy()
+    environment["COGNIVAULT_ENABLE_DEV_PROVISIONING"] = "1"
+    environment["COGNIVAULT_DATABASE_PATH"] = str(database_path)
+    environment["COGNIVAULT_DEV_PASSWORD"] = second_password
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--username",
+            "local-worker",
+            "--reset-password",
+        ],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "updated" in result.stdout
+    assert "local-worker" in result.stdout
+    assert second_password not in result.stdout
+
+    with connect_database(database_path) as connection:
+        stored = get_user_by_username(connection, "local-worker")
+
+    assert stored is not None
+    assert verify_password(second_password, stored.password_hash)
+    assert not verify_password(first_password, stored.password_hash)
