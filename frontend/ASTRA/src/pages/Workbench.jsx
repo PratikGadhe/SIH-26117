@@ -1,27 +1,75 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Bot,
   Brain,
   CheckCircle2,
   Clock3,
   Database,
+  Eye,
   FileText,
+  Image as ImageIcon,
   Loader2,
+  Paperclip,
   Send,
   ShieldCheck,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ApiError, runAgent } from "../services/api";
 import "./Workbench.css";
 
+const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
 function Workbench() {
   const { token, user, logout } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [submittedFilePreview, setSubmittedFilePreview] = useState(null);
+  const [submittedFileName, setSubmittedFileName] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isValidExtension = ALLOWED_IMAGE_EXTENSIONS.some((ext) =>
+      lowerName.endsWith(ext)
+    );
+
+    if (!isValidExtension) {
+      setError("Unsupported file format. Please attach a PNG, JPG, JPEG, or WEBP image.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError("File exceeds maximum permitted size of 10 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setError("");
+    setSelectedFile(file);
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFilePreview(URL.createObjectURL(file));
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+      setFilePreview(null);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const runTask = async () => {
     const userQuery = prompt.trim();
@@ -29,10 +77,15 @@ function Workbench() {
 
     setIsRunning(true);
     setSubmittedQuery(userQuery);
+    setSubmittedFilePreview(filePreview);
+    setSubmittedFileName(selectedFile?.name || "");
     setResult(null);
     setError("");
+
+    const currentFile = selectedFile;
+
     try {
-      setResult(await runAgent(token, userQuery));
+      setResult(await runAgent(token, userQuery, currentFile));
     } catch (requestError) {
       if (requestError instanceof ApiError) {
         if (requestError.status === 401) logout();
@@ -59,12 +112,12 @@ function Workbench() {
       <div className="workbench-intro">
         <div>
           <div className="workbench-label">
-            <ShieldCheck size={15} /> AUTHENTICATED TEXT WORKFLOW
+            <ShieldCheck size={15} /> AUTHENTICATED MULTIMODAL WORKFLOW
           </div>
           <h1>AI Workbench</h1>
           <p>
-            Submit a text task to the real Cognivault agent endpoint. Routing,
-            model use, and knowledge retrieval are controlled by the backend.
+            Submit technical questions or attach engineering schematics to the real Cognivault agent endpoint.
+            Routing, visual analysis (Qwen3-VL), and knowledge retrieval are orchestrated by LangGraph.
           </p>
         </div>
         <div className="workbench-security">
@@ -72,13 +125,12 @@ function Workbench() {
         </div>
       </div>
 
-      <div className="integration-notice">
-        <TriangleAlert size={19} />
+      <div className="integration-notice active-multimodal-notice">
+        <ShieldCheck size={19} />
         <div>
-          <strong>Phase 9A capability boundary</strong>
+          <strong>Multimodal Vision &amp; Reasoning Active</strong>
           <span>
-            Browser file upload, manual model selection, code tools, and
-            deliverable generation are not supported by the current API.
+            Attach P&amp;ID schematics, equipment photos, or engineering diagrams (PNG, JPG, WEBP up to 10MB) for inspection via local Qwen3-VL.
           </span>
         </div>
       </div>
@@ -93,18 +145,73 @@ function Workbench() {
                 <p>POST /api/v1/agent/run</p>
               </div>
             </div>
-            <span className="local-badge"><span /> TEXT ONLY</span>
+            <span className="local-badge"><span /> TEXT &amp; VISION</span>
           </div>
 
           <form onSubmit={handleSubmit}>
             <textarea
               className="task-prompt"
               maxLength={10000}
-              placeholder="Example: Summarize the maintenance safety procedure."
+              placeholder="Example: Analyze this diagram and identify the visible components, labels, and safety connections."
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               disabled={isRunning}
             />
+
+            <div className="attachment-bar">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                style={{ display: "none" }}
+                onChange={handleFileSelect}
+                disabled={isRunning}
+                id="workbench-file-input"
+              />
+              <label
+                htmlFor="workbench-file-input"
+                className={`attach-file-btn ${isRunning ? "disabled" : ""}`}
+                title="Attach an engineering diagram or image"
+              >
+                <Paperclip size={15} />
+                <span>Attach Image</span>
+              </label>
+
+              {selectedFile && (
+                <div className="file-chip">
+                  <ImageIcon size={14} className="file-chip-icon" />
+                  <span className="file-chip-name" title={selectedFile.name}>
+                    {selectedFile.name}
+                  </span>
+                  <span className="file-chip-size">
+                    ({(selectedFile.size / 1024).toFixed(0)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    className="file-chip-remove"
+                    onClick={handleRemoveFile}
+                    disabled={isRunning}
+                    aria-label="Remove attached image"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {filePreview && (
+              <div className="attachment-preview-container">
+                <div className="preview-header">
+                  <span><Eye size={13} /> Attached Preview</span>
+                </div>
+                <img
+                  src={filePreview}
+                  alt="Attachment preview"
+                  className="attachment-preview-thumbnail"
+                />
+              </div>
+            )}
+
             <div className="prompt-footer">
               <span>{prompt.length} / 10,000 characters</span>
               <button
@@ -150,11 +257,23 @@ function Workbench() {
             <div className="conversation-result">
               <div className="conversation-message user-message">
                 <strong>You</strong>
+                {submittedFilePreview && (
+                  <div className="submitted-attachment">
+                    <img
+                      src={submittedFilePreview}
+                      alt="Submitted diagram"
+                      className="submitted-thumbnail"
+                    />
+                    <span className="submitted-file-tag">
+                      <ImageIcon size={12} /> {submittedFileName}
+                    </span>
+                  </div>
+                )}
                 <p>{submittedQuery}</p>
               </div>
               {isRunning && (
                 <div className="conversation-message astra-message">
-                  <strong>ASTRA</strong><p>Waiting for the local agent…</p>
+                  <strong>ASTRA</strong><p>Waiting for the local agent (executing LangGraph workflow)…</p>
                 </div>
               )}
               {result && (

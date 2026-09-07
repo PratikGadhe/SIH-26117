@@ -31,7 +31,9 @@ function errorMessage(status, body) {
 async function request(path, { token, ...options } = {}) {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
+  if (options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   let response;
@@ -69,7 +71,18 @@ export function getCurrentUser(token) {
   return request("/api/v1/auth/me", { token });
 }
 
-export function runAgent(token, userQuery) {
+export function runAgent(token, userQuery, file = null) {
+  if (file) {
+    const formData = new FormData();
+    formData.append("user_query", userQuery);
+    formData.append("file", file);
+    return request("/api/v1/agent/run", {
+      method: "POST",
+      token,
+      body: formData,
+    });
+  }
+
   return request("/api/v1/agent/run", {
     method: "POST",
     token,
