@@ -4,12 +4,16 @@ import sqlite3
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
+from starlette.datastructures import UploadFile
 
 from app.api.dependencies import AgentServiceDependency, DatabaseConnection
 from app.api.dependencies import get_client_ip, require_roles
 from app.core.roles import Role
+from app.core.upload import secure_temporary_image
 from app.db.users import User
-from app.integrations.agent import AgentExecutionError, AgentTimeoutError
+from app.integrations.agent import AgentExecutionError, AgentResult, AgentTimeoutError
 from app.integrations.agent import AgentUnavailableError
 from app.schemas.agent import AgentRunRequest, AgentRunResponse
 from app.services.audit import record_agent_execution_failure
@@ -26,13 +30,16 @@ AgentUser = Annotated[
     "/run",
     response_model=AgentRunResponse,
     responses={
+        400: {"description": "Bad request or empty file"},
+        413: {"description": "Uploaded image exceeds size limit"},
+        415: {"description": "Unsupported media type or format mismatch"},
+        422: {"description": "Invalid input query"},
         502: {"description": "Agent execution failed"},
         503: {"description": "Agent service unavailable"},
         504: {"description": "Agent execution timed out"},
     },
 )
-def run_agent(
-    payload: AgentRunRequest,
+async def run_agent(
     request: Request,
     user: AgentUser,
     connection: DatabaseConnection,
@@ -40,8 +47,97 @@ def run_agent(
 ) -> AgentRunResponse:
     """Execute one stateless request through the teammate LangGraph adapter."""
 
+    content_type = request.headers.get("content-type", "")
+    user_query: str
+    upload_file: UploadFile | None = None
+
+    if content_type.startswith("application/json"):
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid JSON request body",
+            ) from exc
+        try:
+            payload = AgentRunRequest.model_validate(body)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors()) from exc
+        user_query = payload.user_query
+    elif content_type.startswith("multipart/form-data") or content_type.startswith(
+        "application/x-www-form-urlencoded"
+    ):
+        try:
+            form = await request.form()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not parse multipart form data",
+            ) from exc
+
+        raw_query = form.get("user_query")
+        if not raw_query or not isinstance(raw_query, str):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Field 'user_query' is required",
+            )
+        try:
+            payload = AgentRunRequest(user_query=raw_query)
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors()) from exc
+        user_query = payload.user_query
+
+        form_file = form.get("file")
+        if isinstance(form_file, UploadFile) and form_file.filename:
+            upload_file = form_file
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported Content-Type. Use application/json or multipart/form-data.",
+        )
+
+    if upload_file is not None:
+        with secure_temporary_image(upload_file) as temp_image_path:
+            result = _execute_service(
+                service=service,
+                connection=connection,
+                request=request,
+                user=user,
+                user_query=user_query,
+                image_path=temp_image_path,
+            )
+    else:
+        result = _execute_service(
+            service=service,
+            connection=connection,
+            request=request,
+            user=user,
+            user_query=user_query,
+            image_path=None,
+        )
+
+    record_agent_execution_success(
+        connection,
+        user_id=user.id,
+        username=user.username,
+        task_type=result.task_type,
+        resource=request.url.path,
+        action=request.method,
+        ip_address=get_client_ip(request),
+    )
+    return AgentRunResponse.model_validate(result)
+
+
+def _execute_service(
+    service: AgentServiceDependency,
+    connection: sqlite3.Connection,
+    request: Request,
+    user: User,
+    user_query: str,
+    image_path: str | None,
+) -> AgentResult:
     try:
-        result = service.run(payload.user_query)
+        return service.run(user_query, image_path=image_path)
     except AgentTimeoutError as exc:
         _record_failure(connection, request, user, exc.audit_category)
         raise HTTPException(
@@ -60,17 +156,6 @@ def run_agent(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Agent execution failed",
         ) from exc
-
-    record_agent_execution_success(
-        connection,
-        user_id=user.id,
-        username=user.username,
-        task_type=result.task_type,
-        resource=request.url.path,
-        action=request.method,
-        ip_address=get_client_ip(request),
-    )
-    return AgentRunResponse.model_validate(result)
 
 
 def _record_failure(

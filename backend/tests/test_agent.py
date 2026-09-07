@@ -135,12 +135,8 @@ def test_allowed_role_executes_agent(
         "status": "success",
         "response": "Normalized answer",
         "task_type": "DIRECT_CHAT",
-        "citations": [
-            {"source": "manual.pdf", "page": "4", "distance": 0.2}
-        ],
-        "steps": [
-            {"step": 1, "agent": "Supervisor Agent", "action": "Classified"}
-        ],
+        "citations": [{"source": "manual.pdf", "page": "4", "distance": 0.2}],
+        "steps": [{"step": 1, "agent": "Supervisor Agent", "action": "Classified"}],
         "execution_time_seconds": 0.25,
         "air_gapped": True,
     }
@@ -175,9 +171,7 @@ def test_agent_endpoint_requires_valid_authentication(
     runner: FakeAgentRunner,
     token: str | None,
 ) -> None:
-    response = asyncio.run(
-        send_request(test_app, {"user_query": "Run agent"}, token)
-    )
+    response = asyncio.run(send_request(test_app, {"user_query": "Run agent"}, token))
 
     assert response.status_code == 401
     assert runner.calls == []
@@ -190,9 +184,7 @@ def test_basic_user_is_forbidden_before_agent_execution(
 ) -> None:
     _, token = provision_token(settings, Role.USER)
 
-    response = asyncio.run(
-        send_request(test_app, {"user_query": "Run agent"}, token)
-    )
+    response = asyncio.run(send_request(test_app, {"user_query": "Run agent"}, token))
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Insufficient permissions"}
@@ -333,9 +325,7 @@ def test_agent_success_audit_excludes_prompt_response_and_credentials(
     application = create_app(settings, agent_runner=runner)
     user_id, token = provision_token(settings, Role.ADMIN)
 
-    response = asyncio.run(
-        send_request(application, {"user_query": prompt}, token)
-    )
+    response = asyncio.run(send_request(application, {"user_query": prompt}, token))
 
     assert response.status_code == 200
     records = read_agent_events(settings)
@@ -415,3 +405,251 @@ def test_phase_4_audit_events_survive_event_constraint_upgrade(
         AuditEventType.AUTH_LOGIN_SUCCESS,
         AuditEventType.AGENT_EXECUTION_SUCCESS,
     }
+
+
+VALID_PNG_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+VALID_JPEG_BYTES = (
+    b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb"
+)
+
+
+async def send_multipart_request(
+    application: FastAPI,
+    data: dict[str, str],
+    files: dict[str, tuple[str, bytes, str]] | None,
+    token: str | None,
+) -> Response:
+    transport = ASGITransport(app=application)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        return await client.post(
+            "/api/v1/agent/run",
+            data=data,
+            files=files,
+            headers=headers,
+        )
+
+
+def test_valid_png_upload_passes_temporary_file_and_cleans_up(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect pump schematic"},
+            {"file": ("schematic.png", VALID_PNG_BYTES, "image/png")},
+            token,
+        )
+    )
+
+    assert response.status_code == 200
+    assert len(runner.calls) == 1
+    query, image_path, pdf_path = runner.calls[0]
+    assert query == "Inspect pump schematic"
+    assert image_path is not None
+    assert image_path.endswith(".png")
+    assert pdf_path is None
+    # Verify temporary file was deleted after request execution
+    assert not Path(image_path).exists()
+
+
+def test_valid_jpeg_upload_accepted(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect valve photo"},
+            {"file": ("valve.jpg", VALID_JPEG_BYTES, "image/jpeg")},
+            token,
+        )
+    )
+
+    assert response.status_code == 200
+    assert len(runner.calls) == 1
+    assert runner.calls[0][1] is not None
+    assert runner.calls[0][1].endswith(".jpg")
+    assert not Path(runner.calls[0][1]).exists()
+
+
+def test_unsupported_file_extension_rejected_with_415(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect document"},
+            {"file": ("notes.txt", b"plain text content", "text/plain")},
+            token,
+        )
+    )
+
+    assert response.status_code == 415
+    assert "Unsupported file format" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_spoofed_extension_magic_bytes_rejected_with_415(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect image"},
+            {"file": ("exploit.png", b"NOT_A_PNG_FILE", "image/png")},
+            token,
+        )
+    )
+
+    assert response.status_code == 415
+    assert "does not match" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_empty_image_file_rejected_with_400(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect image"},
+            {"file": ("empty.png", b"", "image/png")},
+            token,
+        )
+    )
+
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_oversized_image_rejected_with_413(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    oversized_data = VALID_PNG_BYTES + (b"0" * (10 * 1024 * 1024 + 1))
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect image"},
+            {"file": ("huge.png", oversized_data, "image/png")},
+            token,
+        )
+    )
+
+    assert response.status_code == 413
+    assert "exceeds" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_temporary_file_cleaned_up_on_agent_failure(
+    settings: Settings,
+) -> None:
+    initialize_database(settings.database_path)
+    _, token = provision_token(settings, Role.WORKER)
+    captured_paths = []
+
+    class CapturingFailingRunner:
+        def run(
+            self,
+            user_query: str,
+            image_path: str | None = None,
+            pdf_path: str | None = None,
+        ) -> AgentResult:
+            captured_paths.append(image_path)
+            raise AgentExecutionError("Internal model execution failure")
+
+    application = create_app(settings, agent_runner=CapturingFailingRunner())
+
+    response = asyncio.run(
+        send_multipart_request(
+            application,
+            {"user_query": "Inspect diagram"},
+            {"file": ("diagram.png", VALID_PNG_BYTES, "image/png")},
+            token,
+        )
+    )
+
+    assert response.status_code == 502
+    assert len(captured_paths) == 1
+    assert captured_paths[0] is not None
+    assert not Path(captured_paths[0]).exists()
+
+
+def test_unauthenticated_multipart_request_rejected_with_401(
+    test_app: FastAPI,
+) -> None:
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect image"},
+            {"file": ("diagram.png", VALID_PNG_BYTES, "image/png")},
+            token=None,
+        )
+    )
+
+    assert response.status_code == 401
+
+
+def test_unauthorized_user_role_multipart_rejected_with_403(
+    test_app: FastAPI,
+    settings: Settings,
+) -> None:
+    _, token = provision_token(settings, Role.USER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Inspect image"},
+            {"file": ("diagram.png", VALID_PNG_BYTES, "image/png")},
+            token=token,
+        )
+    )
+
+    assert response.status_code == 403
+
+
+def test_multipart_without_file_executes_as_text_only(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Form text only query"},
+            files=None,
+            token=token,
+        )
+    )
+
+    assert response.status_code == 200
+    assert runner.calls == [("Form text only query", None, None)]

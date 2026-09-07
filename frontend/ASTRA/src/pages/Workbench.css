@@ -58,6 +58,149 @@
 .user-message > strong { color: #dbeafe; }
 .astra-message { justify-self: start; color: #334155; background: #f1f5f9; }
 
+/* Active Multimodal Notice */
+.active-multimodal-notice {
+  border-color: #bbf7d0;
+  color: #14532d;
+  background: #f0fdf4;
+}
+
+/* Attachment Bar & Controls */
+.attachment-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.attach-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.attach-file-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.attach-file-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 12px;
+}
+
+.file-chip-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.file-chip-size {
+  color: #0284c7;
+  font-size: 11px;
+}
+
+.file-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #0369a1;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.file-chip-remove:hover {
+  background: #bae6fd;
+}
+
+/* Attachment Preview */
+.attachment-preview-container {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  max-width: 260px;
+}
+
+.preview-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.attachment-preview-thumbnail {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+
+/* User Message Submitted Attachment */
+.submitted-attachment {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 220px;
+}
+
+.submitted-thumbnail {
+  max-width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.submitted-file-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #e0f2fe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* INTRO */
 
 .workbench-intro {
