@@ -56,10 +56,7 @@ class VisionService:
         print(f"📊 Model info: {self.client.get_model_info()}")
 
     def analyze_image(
-        self,
-        image_path: str,
-        prompt: str,
-        return_json: bool = True
+        self, image_path: str, prompt: str, return_json: bool = True
     ) -> Dict[str, Any]:
         """
         Analyze an image using Qwen3-VL vision model.
@@ -190,9 +187,11 @@ class VisionService:
         self,
         pdf_path: str,
         prompt: str = "Extract all readable text and key values from this document.",
+        max_pages: int = 10,
     ) -> Dict[str, Any]:
         """
         Read a PDF and extract page-level text, using PyMuPDF when available.
+        Enforces a page cap for local hardware responsiveness.
         """
         if not pdf_path or not Path(pdf_path).exists():
             return {
@@ -221,7 +220,11 @@ class VisionService:
 
         try:
             doc = fitz.open(pdf_path)
-            for page_index in range(doc.page_count):
+            total_pages = doc.page_count
+            pages_to_process = (
+                min(total_pages, max_pages) if max_pages > 0 else total_pages
+            )
+            for page_index in range(pages_to_process):
                 page = doc[page_index]
                 page_text = page.get_text("text").strip()
                 page_result: Dict[str, Any] = {
@@ -247,11 +250,18 @@ class VisionService:
                     page_result["structured"] = vision_result.get("structured", {})
                     page_result["confidence"] = vision_result.get("confidence", 0.0)
                     if vision_result.get("status") != "success":
-                        page_result["error"] = vision_result.get("error", "Vision analysis failed")
+                        page_result["error"] = vision_result.get(
+                            "error", "Vision analysis failed"
+                        )
 
                 extracted_text.append(page_text or page_result.get("analysis", ""))
                 pages.append(page_result)
             doc.close()
+
+            if total_pages > pages_to_process:
+                extracted_text.append(
+                    f"(Extracted first {pages_to_process} pages of {total_pages} for local analysis)"
+                )
         except Exception as exc:  # pragma: no cover
             pages = []
             extracted_text = [str(exc)]
@@ -297,12 +307,20 @@ class VisionService:
         analyses = []
         for image_path in items:
             if not Path(image_path).exists():
-                analyses.append({"image_path": str(image_path), "status": "error", "error": "Image not found"})
+                analyses.append(
+                    {
+                        "image_path": str(image_path),
+                        "status": "error",
+                        "error": "Image not found",
+                    }
+                )
                 continue
             analyses.append(self.analyze_image(image_path, prompt))
 
         combined_text = "\n\n".join(
-            item.get("analysis", "") for item in analyses if item.get("status") == "success"
+            item.get("analysis", "")
+            for item in analyses
+            if item.get("status") == "success"
         )
 
         return {
@@ -312,11 +330,15 @@ class VisionService:
             "images": items,
             "results": analyses,
             "combined_analysis": combined_text or "No summary available",
-            "confidence": self._extract_confidence(combined_text) if combined_text else 0.0,
+            "confidence": self._extract_confidence(combined_text)
+            if combined_text
+            else 0.0,
         }
 
     @staticmethod
-    def parse_structured_response(response: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def parse_structured_response(
+        response: Union[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
         """
         Parse a JSON-like response into a dictionary for structured output.
         """
@@ -378,8 +400,8 @@ class VisionService:
         """Extract confidence score from response if present."""
         try:
             patterns = [
-                r'confidence[:\s]+([0-9.]+)',
-                r'confidence\s*=\s*([0-9]+)%',
+                r"confidence[:\s]+([0-9.]+)",
+                r"confidence\s*=\s*([0-9]+)%",
             ]
 
             for pattern in patterns:

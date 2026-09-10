@@ -300,6 +300,28 @@
   border: 1px solid var(--user-msg-border);
 }
 
+.attached-document-card {
+  padding: 8px 12px;
+  min-width: 220px;
+}
+
+.attached-document-icon {
+  color: var(--accent-olive);
+  flex-shrink: 0;
+}
+
+.attached-file-badge {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent-olive-tint);
+  color: var(--accent-olive-text);
+  border: 1px solid var(--accent-olive-border);
+  margin-left: auto;
+}
+
 .attached-media-img {
   max-width: 100%;
   max-height: 150px;
@@ -843,6 +865,22 @@
   object-fit: cover;
   border-radius: 4px;
   border: 1px solid var(--accent-olive-border);
+}
+
+.chip-pdf-preview {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--accent-olive-tint);
+  border: 1px solid var(--accent-olive-border);
+  flex-shrink: 0;
+}
+
+.chip-pdf-icon {
+  color: var(--accent-olive);
 }
 
 .chip-info {
