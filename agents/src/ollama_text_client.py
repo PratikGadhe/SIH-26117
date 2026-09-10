@@ -4,9 +4,64 @@ Handles text inference, structured JSON output, and local connection to Qwen on 
 """
 
 import json
+import re
 import time
 import requests
 from typing import Optional, Dict, Any, Union
+
+
+def strip_reasoning_and_thinking(text: str) -> str:
+    """
+    Cleans model generation output by stripping internal reasoning:
+    1. Removes <think>...</think> blocks (including multiline and unclosed tags).
+    2. Strips internal reasoning preamble lines (e.g. "First, the user asked...").
+    3. Returns clean user-facing response text.
+    """
+    if not text:
+        return ""
+
+    # Strip <think>...</think> blocks
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    if "<think>" in cleaned and "</think>" not in cleaned:
+        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+    cleaned = cleaned.replace("</think>", "").strip()
+
+    # Strip conversational reasoning preamble lines
+    lines = cleaned.splitlines()
+    filtered_lines = []
+    skipping_meta = True
+    meta_starters = (
+        "first, the user asked",
+        "first, i need",
+        "first, i should",
+        "first, i must",
+        "i need to base",
+        "i should base",
+        "i must base",
+        "the rule says",
+        "the rules state",
+        "the rule states",
+        "let me check",
+        "let me see",
+        "i should not add",
+        "i must not add",
+        "the user is asking",
+        "the user asks",
+        "the response should be",
+        "looking at the visual",
+        "based on the rules",
+    )
+    for line in lines:
+        stripped = line.strip().lower()
+        if skipping_meta and any(stripped.startswith(m) for m in meta_starters):
+            continue
+        skipping_meta = False
+        filtered_lines.append(line)
+
+    if filtered_lines:
+        cleaned = "\n".join(filtered_lines).strip()
+
+    return cleaned
 
 
 class OllamaTextClient:
@@ -120,10 +175,15 @@ class OllamaTextClient:
             data = response.json()
             elapsed_time = round(time.time() - start_time, 2)
 
-            # In newer reasoning models like Qwen3, output can be in 'response' or 'thinking'
-            resp_text = data.get("response", "").strip()
+            # Response hygiene: prioritize 'response', strip any <think> tags or reasoning leaks
+            raw_resp = data.get("response", "").strip()
+            resp_text = strip_reasoning_and_thinking(raw_resp)
+
+            # If response was empty after cleaning and thinking exists, treat thinking as internal metadata
+            # and strip reasoning from it
             if not resp_text and "thinking" in data:
-                resp_text = data.get("thinking", "").strip()
+                raw_thinking = data.get("thinking", "").strip()
+                resp_text = strip_reasoning_and_thinking(raw_thinking)
 
             return {
                 "status": "success",

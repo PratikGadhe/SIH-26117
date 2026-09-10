@@ -93,3 +93,7 @@ export function runAgent(token, userQuery, file = null) {
 export function getHealth() {
   return request("/health");
 }
+
+export function getSystemStatus(token) {
+  return request("/api/v1/system/status", { token });
+}

@@ -23,7 +23,9 @@ import { ApiError, runAgent } from "../services/api";
 import "./Workbench.css";
 
 const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
-const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_DOCUMENT_EXTENSIONS = [".pdf"];
+const ALLOWED_EXTENSIONS = [...ALLOWED_IMAGE_EXTENSIONS, ...ALLOWED_DOCUMENT_EXTENSIONS];
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 const ACTIVE_TASK_KEY = "astra_active_task";
 const TASK_HISTORY_KEY = "astra_task_history";
@@ -230,6 +232,261 @@ function MarkdownRenderer({ content }) {
   return <div className="md-container">{elements}</div>;
 }
 
+// Safe storage hydration supporting both new conversation format and legacy single tasks
+function getStoredActiveConversation() {
+  try {
+    const saved = localStorage.getItem(ACTIVE_TASK_KEY);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (!parsed) return null;
+
+    // Already in multi-turn conversation model
+    if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+      return {
+        conversationId: parsed.conversationId || `conv-${parsed.createdAt || Date.now()}`,
+        messages: parsed.messages,
+        createdAt: parsed.createdAt || Date.now(),
+        updatedAt: parsed.updatedAt || Date.now(),
+      };
+    }
+
+    // Convert legacy single-task format { query, result, ... } into conversation
+    if (parsed.query && parsed.result) {
+      const isPdf = parsed.fileType === "pdf" || parsed.fileName?.toLowerCase().endsWith(".pdf");
+      const userMsg = {
+        id: `msg-${parsed.id || Date.now()}-u`,
+        role: "user",
+        content: parsed.query,
+        timestamp: parsed.timestamp || Date.now(),
+        fileMeta: parsed.fileName
+          ? {
+              name: parsed.fileName,
+              size: 0,
+              type: isPdf ? "pdf" : "image",
+            }
+          : null,
+      };
+      const assistantMsg = {
+        id: `msg-${parsed.id || Date.now()}-a`,
+        role: "assistant",
+        content: parsed.result.response || "",
+        taskType: parsed.result.task_type || "UNKNOWN",
+        executionTimeSeconds: parsed.result.execution_time_seconds || 0,
+        airGapped: Boolean(parsed.result.air_gapped),
+        steps: parsed.result.steps || [],
+        citations: parsed.result.citations || [],
+        timestamp: parsed.timestamp || Date.now(),
+      };
+      return {
+        conversationId: parsed.id || `conv-${Date.now()}`,
+        messages: [userMsg, assistantMsg],
+        createdAt: parsed.timestamp || Date.now(),
+        updatedAt: parsed.timestamp || Date.now(),
+      };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+// Strip data URLs / base64 and sensitive tokens before writing to localStorage (ensures <10KB)
+function sanitizeConversationForStorage(conversation) {
+  if (!conversation) return null;
+  return {
+    conversationId: conversation.conversationId,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+    messages: (conversation.messages || []).map((msg) => {
+      if (msg.role === "user") {
+        return {
+          id: msg.id,
+          role: "user",
+          content: msg.content,
+          timestamp: msg.timestamp,
+          fileMeta: msg.fileMeta
+            ? {
+                name: msg.fileMeta.name,
+                size: msg.fileMeta.size,
+                type: msg.fileMeta.type,
+              }
+            : null,
+          // Note: filePreview data URL is intentionally excluded to prevent browser quota exhaustion
+        };
+      }
+      return {
+        id: msg.id,
+        role: "assistant",
+        content: msg.content,
+        taskType: msg.taskType,
+        executionTimeSeconds: msg.executionTimeSeconds,
+        airGapped: msg.airGapped,
+        steps: msg.steps || [],
+        citations: msg.citations || [],
+        timestamp: msg.timestamp,
+      };
+    }),
+  };
+}
+
+// Self-contained assistant card with individual copy feedback and collapsible panels
+function AssistantMessageCard({ message }) {
+  const [showSteps, setShowSteps] = useState(false);
+  const [showCitations, setShowCitations] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!message.content) return;
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="chat-row assistant-row">
+      <div className="chat-bubble assistant-bubble result-bubble">
+        {/* Assistant Identity Header */}
+        <div className="assistant-bubble-header">
+          <div className="assistant-id">
+            <div className="assistant-avatar">
+              <ShieldCheck size={18} />
+            </div>
+            <div>
+              <strong>ASTRA</strong>
+              <span className="assistant-model-tag">Local Sovereign AI</span>
+            </div>
+          </div>
+
+          <div className="result-meta-chips">
+            <span className="meta-chip task-chip" title="Task classification">
+              <Brain size={12} /> {message.taskType}
+            </span>
+            <span className="meta-chip time-chip" title="Total roundtrip execution time">
+              <Clock3 size={12} /> {message.executionTimeSeconds}s
+            </span>
+            {message.airGapped && (
+              <span className="meta-chip airgap-chip" title="Air-gapped local execution">
+                <ShieldCheck size={12} /> Air-Gapped
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Main Formatted Answer (Visually Primary) */}
+        <div className="assistant-response-content">
+          <MarkdownRenderer content={message.content} />
+        </div>
+
+        {/* Action Bar (Copy + Collapsible Toggles) */}
+        <div className="response-actions-bar">
+          <button
+            type="button"
+            className={`action-btn copy-btn ${copied ? "copied" : ""}`}
+            onClick={handleCopy}
+            title="Copy response text"
+            aria-label="Copy response text"
+          >
+            {copied ? (
+              <>
+                <Check size={13} className="copied-check" />
+                <span>Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy size={13} />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+
+          {message.steps?.length > 0 && (
+            <button
+              type="button"
+              className="action-btn toggle-steps-btn"
+              onClick={() => setShowSteps(!showSteps)}
+              title="View agent execution activity"
+            >
+              <CheckCircle2 size={13} />
+              <span>Agent activity ({message.steps.length})</span>
+              {showSteps ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+
+          {message.citations?.length > 0 && (
+            <button
+              type="button"
+              className="action-btn toggle-citations-btn"
+              onClick={() => setShowCitations(!showCitations)}
+              title="View cited knowledge sources"
+            >
+              <FileText size={13} />
+              <span>Sources ({message.citations.length})</span>
+              {showCitations ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+        </div>
+
+        {/* Collapsible Execution Steps (Secondary) */}
+        {showSteps && message.steps?.length > 0 && (
+          <div className="collapsible-panel steps-panel">
+            <div className="panel-header">
+              <CheckCircle2 size={14} />
+              <strong>Agent Execution Activity</strong>
+            </div>
+            <div className="timeline-steps">
+              {message.steps.map((step) => (
+                <div key={`${step.step}-${step.agent}`} className="timeline-step">
+                  <div className="step-badge">
+                    <span>{step.step}</span>
+                  </div>
+                  <div className="step-details">
+                    <strong className="step-agent">{step.agent}</strong>
+                    <span className="step-action">{step.action}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Collapsible Citations (Secondary) */}
+        {showCitations && message.citations?.length > 0 && (
+          <div className="collapsible-panel citations-panel">
+            <div className="panel-header">
+              <Database size={14} />
+              <strong>Knowledge Sources (ChromaDB RAG)</strong>
+            </div>
+            <div className="citation-cards-grid">
+              {message.citations.map((c, i) => (
+                <div key={`${c.source}-${c.page}-${i}`} className="citation-card">
+                  <div className="citation-card-top">
+                    <FileText size={13} />
+                    <span className="citation-source" title={c.source}>
+                      {c.source}
+                    </span>
+                  </div>
+                  <div className="citation-card-bottom">
+                    <span className="citation-page">Page {c.page}</span>
+                    {c.distance != null && (
+                      <span className="citation-distance">
+                        dist: {Number(c.distance).toFixed(3)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Workbench() {
   const { token, user, logout } = useAuth();
   const [prompt, setPrompt] = useState("");
@@ -237,65 +494,19 @@ function Workbench() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
 
-  // Active task state with client-side localStorage persistence
-  const [submittedQuery, setSubmittedQuery] = useState(() => {
-    try {
-      const saved = localStorage.getItem(ACTIVE_TASK_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.query || "";
-      }
-    } catch {
-      // Ignore parse error
-    }
-    return "";
-  });
-
-  const [submittedFileName, setSubmittedFileName] = useState(() => {
-    try {
-      const saved = localStorage.getItem(ACTIVE_TASK_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.fileName || "";
-      }
-    } catch {
-      // Ignore
-    }
-    return "";
-  });
-
-  const [submittedFilePreview, setSubmittedFilePreview] = useState(() => {
-    try {
-      const saved = localStorage.getItem(ACTIVE_TASK_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.filePreview || null;
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
-  });
-
-  const [result, setResult] = useState(() => {
-    try {
-      const saved = localStorage.getItem(ACTIVE_TASK_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.result || null;
-      }
-    } catch {
-      // Ignore
-    }
-    return null;
+  // Unified conversation state containing multi-turn messages
+  const [conversation, setConversation] = useState(() => {
+    const stored = getStoredActiveConversation();
+    if (stored) return stored;
+    return {
+      conversationId: `conv-${Date.now()}`,
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
   });
 
   const [error, setError] = useState("");
-
-  // Accordion toggles
-  const [showSteps, setShowSteps] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -306,24 +517,63 @@ function Workbench() {
   }, []);
 
   useEffect(() => {
-    if (isRunning || result) {
+    if (isRunning || conversation.messages.length > 0) {
       scrollToBottom();
     }
-  }, [isRunning, result, scrollToBottom]);
+  }, [isRunning, conversation.messages.length, scrollToBottom]);
 
   // Listen to external restore events (from Sidebar history clicks)
   useEffect(() => {
     const handleRestore = (event) => {
       const task = event.detail;
       if (!task) return;
-      setSubmittedQuery(task.query || "");
-      setSubmittedFileName(task.fileName || "");
-      setSubmittedFilePreview(task.filePreview || null);
-      setResult(task.result || null);
+
+      if (Array.isArray(task.messages) && task.messages.length > 0) {
+        setConversation({
+          conversationId: task.id || `conv-${Date.now()}`,
+          messages: task.messages,
+          createdAt: task.timestamp || Date.now(),
+          updatedAt: task.timestamp || Date.now(),
+        });
+      } else if (task.query && task.result) {
+        const isPdf = task.fileType === "pdf" || task.fileName?.toLowerCase().endsWith(".pdf");
+        setConversation({
+          conversationId: task.id || `conv-${Date.now()}`,
+          messages: [
+            {
+              id: `msg-${task.id || Date.now()}-u`,
+              role: "user",
+              content: task.query,
+              timestamp: task.timestamp || Date.now(),
+              fileMeta: task.fileName
+                ? {
+                    name: task.fileName,
+                    size: 0,
+                    type: isPdf ? "pdf" : "image",
+                  }
+                : null,
+            },
+            {
+              id: `msg-${task.id || Date.now()}-a`,
+              role: "assistant",
+              content: task.result.response || "",
+              taskType: task.result.task_type || "UNKNOWN",
+              executionTimeSeconds: task.result.execution_time_seconds || 0,
+              airGapped: Boolean(task.result.air_gapped),
+              steps: task.result.steps || [],
+              citations: task.result.citations || [],
+              timestamp: task.timestamp || Date.now(),
+            },
+          ],
+          createdAt: task.timestamp || Date.now(),
+          updatedAt: task.timestamp || Date.now(),
+        });
+      }
       setError("");
       setPrompt("");
       setSelectedFile(null);
       setFilePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     window.addEventListener("astra_restore_task", handleRestore);
@@ -337,17 +587,17 @@ function Workbench() {
     if (!file) return;
 
     const lowerName = file.name.toLowerCase();
-    const isValidExtension = ALLOWED_IMAGE_EXTENSIONS.some((ext) =>
+    const isValidExtension = ALLOWED_EXTENSIONS.some((ext) =>
       lowerName.endsWith(ext)
     );
 
     if (!isValidExtension) {
-      setError("Unsupported file format. Please attach a PNG, JPG, JPEG, or WEBP image.");
+      setError("Unsupported file format. Please attach a PNG, JPG, JPEG, WEBP image, or PDF document.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    if (file.size > MAX_FILE_SIZE_BYTES) {
       setError("File exceeds maximum permitted size of 10 MB.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -356,12 +606,18 @@ function Workbench() {
     setError("");
     setSelectedFile(file);
 
-    // Read preview as Data URL so it can be safely persisted across page reloads
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFilePreview(reader.result);
-    };
-    reader.readAsDataURL(file);
+    const isPdf = lowerName.endsWith(".pdf");
+    if (isPdf) {
+      // PDF documents don't use image Data URLs
+      setFilePreview(null);
+    } else {
+      // Read preview as Data URL for in-memory display during current turn
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFilePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleRemoveFile = () => {
@@ -376,31 +632,25 @@ function Workbench() {
     } catch {
       // Ignore
     }
-    setSubmittedQuery("");
-    setSubmittedFilePreview(null);
-    setSubmittedFileName("");
-    setResult(null);
+    setConversation({
+      conversationId: `conv-${Date.now()}`,
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
     setError("");
     setPrompt("");
     handleRemoveFile();
     if (textareaRef.current) textareaRef.current.focus();
   };
 
-  const persistTask = (query, file, previewData, agentResult) => {
-    const sessionData = {
-      id: Date.now().toString(),
-      query,
-      hasImage: Boolean(file),
-      fileName: file?.name || "",
-      filePreview: previewData || null,
-      result: agentResult,
-      timestamp: Date.now(),
-    };
-
+  const persistConversation = (conv, lastQuery, lastFile, lastResult) => {
     try {
-      localStorage.setItem(ACTIVE_TASK_KEY, JSON.stringify(sessionData));
+      // 1. Save active conversation (safely sanitized, without heavy base64 strings)
+      const sanitized = sanitizeConversationForStorage(conv);
+      localStorage.setItem(ACTIVE_TASK_KEY, JSON.stringify(sanitized));
 
-      // Append to task history
+      // 2. Append/update in Recent History (TASK_HISTORY_KEY)
       const existingRaw = localStorage.getItem(TASK_HISTORY_KEY);
       let history = [];
       if (existingRaw) {
@@ -412,10 +662,35 @@ function Workbench() {
         }
       }
 
-      // Filter duplicate query and prepend
+      const firstUserMsg = conv.messages.find((m) => m.role === "user");
+      const firstQuery = firstUserMsg?.content || lastQuery || "Conversation";
+      const hasImage = Boolean(
+        conv.messages.some((m) => m.fileMeta?.type === "image")
+      );
+      const isPdf = Boolean(
+        conv.messages.some((m) => m.fileMeta?.type === "pdf")
+      );
+      const fileName =
+        conv.messages.find((m) => m.fileMeta)?.fileMeta?.name || lastFile?.name || "";
+
+      const historyItem = {
+        id: conv.conversationId,
+        query: firstQuery,
+        hasImage,
+        hasFile: hasImage || isPdf,
+        fileType: isPdf ? "pdf" : (hasImage ? "image" : null),
+        fileName,
+        result: lastResult || null,
+        messages: sanitized.messages,
+        timestamp: conv.updatedAt || Date.now(),
+      };
+
+      // Filter out same conversationId or duplicate query and prepend
       history = [
-        sessionData,
-        ...history.filter((h) => h.query !== query),
+        historyItem,
+        ...history.filter(
+          (h) => h.id !== conv.conversationId && h.query !== firstQuery
+        ),
       ].slice(0, 10);
 
       localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(history));
@@ -425,25 +700,72 @@ function Workbench() {
     }
   };
 
-  const runTask = async () => {
-    const userQuery = prompt.trim();
+  const runTask = async (overrideQuery, overrideFile) => {
+    const userQuery = (overrideQuery || prompt).trim();
     if (!userQuery || isRunning) return;
 
-    setIsRunning(true);
-    setSubmittedQuery(userQuery);
-    setSubmittedFilePreview(filePreview);
-    setSubmittedFileName(selectedFile?.name || "");
-    setResult(null);
-    setError("");
-    setCopied(false);
+    const currentFile = overrideFile !== undefined ? overrideFile : selectedFile;
+    const currentPreview = overrideFile !== undefined ? null : filePreview;
+    const isPdf = currentFile?.name?.toLowerCase().endsWith(".pdf");
 
-    const currentFile = selectedFile;
-    const currentPreview = filePreview;
+    const userMessage = {
+      id: `msg-${Date.now()}-u`,
+      role: "user",
+      content: userQuery,
+      timestamp: Date.now(),
+      fileMeta: currentFile
+        ? {
+            name: currentFile.name,
+            size: currentFile.size,
+            type: isPdf ? "pdf" : "image",
+          }
+        : null,
+      filePreview: isPdf ? null : currentPreview,
+    };
+
+    // Append user message to conversation
+    const updatedMessages = overrideQuery
+      ? conversation.messages
+      : [...conversation.messages, userMessage];
+
+    const updatedConversation = {
+      ...conversation,
+      messages: updatedMessages,
+      updatedAt: Date.now(),
+    };
+
+    if (!overrideQuery) {
+      setConversation(updatedConversation);
+      setPrompt("");
+      setSelectedFile(null);
+      setFilePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+    setIsRunning(true);
+    setError("");
 
     try {
       const response = await runAgent(token, userQuery, currentFile);
-      setResult(response);
-      persistTask(userQuery, currentFile, currentPreview, response);
+      const assistantMessage = {
+        id: `msg-${Date.now()}-a`,
+        role: "assistant",
+        content: response.response,
+        taskType: response.task_type,
+        executionTimeSeconds: response.execution_time_seconds,
+        airGapped: response.air_gapped,
+        steps: response.steps || [],
+        citations: response.citations || [],
+        timestamp: Date.now(),
+      };
+
+      const finalConversation = {
+        ...updatedConversation,
+        messages: [...updatedMessages, assistantMessage],
+        updatedAt: Date.now(),
+      };
+
+      setConversation(finalConversation);
+      persistConversation(finalConversation, userQuery, currentFile, response);
     } catch (requestError) {
       if (requestError instanceof ApiError) {
         if (requestError.status === 401) logout();
@@ -455,6 +777,7 @@ function Workbench() {
       } else {
         setError("The task could not be completed. Please verify the local AI runtime.");
       }
+      persistConversation(updatedConversation, userQuery, currentFile, null);
     } finally {
       setIsRunning(false);
     }
@@ -472,17 +795,6 @@ function Workbench() {
     }
   };
 
-  const handleCopyResponse = async () => {
-    if (!result?.response) return;
-    try {
-      await navigator.clipboard.writeText(result.response);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   const handleSelectChip = (chip) => {
     setPrompt(chip.query);
     if (textareaRef.current) {
@@ -490,7 +802,9 @@ function Workbench() {
     }
   };
 
-  const hasActiveConversation = Boolean(submittedQuery || isRunning || result);
+  const hasActiveConversation = Boolean(
+    conversation.messages.length > 0 || isRunning
+  );
 
   return (
     <div className="workbench-workspace">
@@ -562,19 +876,25 @@ function Workbench() {
               <form onSubmit={handleSubmit} className="composer-form">
                 {selectedFile && (
                   <div className="composer-attachment-chip">
-                    {filePreview && (
-                      <img
-                        src={filePreview}
-                        alt="Attachment preview thumbnail"
-                        className="chip-thumbnail"
-                      />
+                    {selectedFile.name.toLowerCase().endsWith(".pdf") ? (
+                      <div className="chip-pdf-preview" title="PDF Document">
+                        <FileText size={16} className="chip-pdf-icon" />
+                      </div>
+                    ) : (
+                      filePreview && (
+                        <img
+                          src={filePreview}
+                          alt="Attachment preview thumbnail"
+                          className="chip-thumbnail"
+                        />
+                      )
                     )}
                     <div className="chip-info">
                       <span className="chip-filename" title={selectedFile.name}>
                         {selectedFile.name}
                       </span>
                       <span className="chip-filesize">
-                        ({(selectedFile.size / 1024).toFixed(0)} KB)
+                        ({(selectedFile.size / 1024).toFixed(0)} KB{selectedFile.name.toLowerCase().endsWith(".pdf") ? " • PDF" : ""})
                       </span>
                     </div>
                     <button
@@ -595,7 +915,7 @@ function Workbench() {
                     ref={textareaRef}
                     className="composer-textarea"
                     maxLength={10000}
-                    placeholder="Ask ASTRA anything, or attach an engineering diagram (Enter to send)…"
+                    placeholder="Ask ASTRA anything, or attach a diagram/PDF (Enter to send)…"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -609,7 +929,7 @@ function Workbench() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                      accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf"
                       style={{ display: "none" }}
                       onChange={handleFileSelect}
                       disabled={isRunning}
@@ -618,14 +938,14 @@ function Workbench() {
                     <label
                       htmlFor="workbench-file-input-empty"
                       className={`composer-tool-btn ${isRunning ? "disabled" : ""}`}
-                      title="Attach engineering diagram (PNG, JPG, WEBP up to 10MB)"
+                      title="Attach engineering diagram or PDF document (PNG, JPG, WEBP, PDF up to 10MB)"
                     >
                       <Paperclip size={15} />
                       <span>Attach file</span>
                     </label>
 
                     <span className="composer-multimodal-tag">
-                      <ImageIcon size={12} /> Vision Active
+                      <FileText size={12} /> Multimodal Active
                     </span>
                   </div>
 
@@ -655,31 +975,55 @@ function Workbench() {
         ) : (
           /* CONVERSATIONAL THREAD */
           <div className="conversation-thread">
-            {/* User Message */}
-            <div className="chat-row user-row">
-              <div className="chat-bubble user-bubble">
-                <div className="chat-bubble-header">
-                  <strong>You</strong>
-                  <span className="chat-role-tag">{user?.role}</span>
-                </div>
+            {conversation.messages.map((message) => {
+              if (message.role === "user") {
+                return (
+                  <div key={message.id} className="chat-row user-row">
+                    <div className="chat-bubble user-bubble">
+                      <div className="chat-bubble-header">
+                        <strong>You</strong>
+                        <span className="chat-role-tag">{user?.role}</span>
+                      </div>
 
-                {submittedFilePreview && (
-                  <div className="attached-media-card">
-                    <img
-                      src={submittedFilePreview}
-                      alt="Attached schematic"
-                      className="attached-media-img"
-                    />
-                    <div className="attached-media-meta">
-                      <ImageIcon size={13} />
-                      <span className="attached-media-name">{submittedFileName}</span>
+                      {message.fileMeta && (
+                        message.fileMeta.type === "pdf" ? (
+                          <div className="attached-media-card attached-document-card">
+                            <div className="attached-media-meta">
+                              <FileText size={15} className="attached-document-icon" />
+                              <span className="attached-media-name">{message.fileMeta.name}</span>
+                              <span className="attached-file-badge">PDF</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="attached-media-card">
+                            {message.filePreview && (
+                              <img
+                                src={message.filePreview}
+                                alt="Attached schematic"
+                                className="attached-media-img"
+                              />
+                            )}
+                            <div className="attached-media-meta">
+                              <ImageIcon size={13} />
+                              <span className="attached-media-name">{message.fileMeta.name}</span>
+                              <span className="attached-file-badge">IMAGE</span>
+                            </div>
+                          </div>
+                        )
+                      )}
+
+                      <div className="chat-bubble-text">{message.content}</div>
                     </div>
                   </div>
-                )}
+                );
+              }
 
-                <div className="chat-bubble-text">{submittedQuery}</div>
-              </div>
-            </div>
+              if (message.role === "assistant") {
+                return <AssistantMessageCard key={message.id} message={message} />;
+              }
+
+              return null;
+            })}
 
             {/* Truthful Loading Indicator */}
             {isRunning && (
@@ -720,155 +1064,6 @@ function Workbench() {
                     <strong>Task Execution Error</strong>
                   </div>
                   <p>{error}</p>
-                  <button
-                    type="button"
-                    className="error-retry-btn"
-                    onClick={runTask}
-                    disabled={isRunning}
-                  >
-                    Retry Request
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ASTRA Completed Result Card */}
-            {result && (
-              <div className="chat-row assistant-row">
-                <div className="chat-bubble assistant-bubble result-bubble">
-                  {/* Assistant Identity Header */}
-                  <div className="assistant-bubble-header">
-                    <div className="assistant-id">
-                      <div className="assistant-avatar">
-                        <ShieldCheck size={18} />
-                      </div>
-                      <div>
-                        <strong>ASTRA</strong>
-                        <span className="assistant-model-tag">Local Sovereign AI</span>
-                      </div>
-                    </div>
-
-                    <div className="result-meta-chips">
-                      <span className="meta-chip task-chip" title="Task classification">
-                        <Brain size={12} /> {result.task_type}
-                      </span>
-                      <span className="meta-chip time-chip" title="Total roundtrip execution time">
-                        <Clock3 size={12} /> {result.execution_time_seconds}s
-                      </span>
-                      {result.air_gapped && (
-                        <span className="meta-chip airgap-chip" title="Air-gapped local execution">
-                          <ShieldCheck size={12} /> Air-Gapped
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Main Formatted Answer (Visually Primary) */}
-                  <div className="assistant-response-content">
-                    <MarkdownRenderer content={result.response} />
-                  </div>
-
-                  {/* Action Bar (Copy + Collapsible Toggles) */}
-                  <div className="response-actions-bar">
-                    <button
-                      type="button"
-                      className={`action-btn copy-btn ${copied ? "copied" : ""}`}
-                      onClick={handleCopyResponse}
-                      title="Copy response text"
-                      aria-label="Copy response text"
-                    >
-                      {copied ? (
-                        <>
-                          <Check size={13} className="copied-check" />
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={13} />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-
-                    {result.steps?.length > 0 && (
-                      <button
-                        type="button"
-                        className="action-btn toggle-steps-btn"
-                        onClick={() => setShowSteps(!showSteps)}
-                        title="View agent execution activity"
-                      >
-                        <CheckCircle2 size={13} />
-                        <span>Agent activity ({result.steps.length})</span>
-                        {showSteps ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      </button>
-                    )}
-
-                    {result.citations?.length > 0 && (
-                      <button
-                        type="button"
-                        className="action-btn toggle-citations-btn"
-                        onClick={() => setShowCitations(!showCitations)}
-                        title="View cited knowledge sources"
-                      >
-                        <FileText size={13} />
-                        <span>Sources ({result.citations.length})</span>
-                        {showCitations ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Collapsible Execution Steps (Secondary) */}
-                  {showSteps && result.steps?.length > 0 && (
-                    <div className="collapsible-panel steps-panel">
-                      <div className="panel-header">
-                        <CheckCircle2 size={14} />
-                        <strong>Agent Execution Activity</strong>
-                      </div>
-                      <div className="timeline-steps">
-                        {result.steps.map((step) => (
-                          <div key={`${step.step}-${step.agent}`} className="timeline-step">
-                            <div className="step-badge">
-                              <span>{step.step}</span>
-                            </div>
-                            <div className="step-details">
-                              <strong className="step-agent">{step.agent}</strong>
-                              <span className="step-action">{step.action}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Collapsible Citations (Secondary) */}
-                  {showCitations && result.citations?.length > 0 && (
-                    <div className="collapsible-panel citations-panel">
-                      <div className="panel-header">
-                        <Database size={14} />
-                        <strong>Knowledge Sources (ChromaDB RAG)</strong>
-                      </div>
-                      <div className="citation-cards-grid">
-                        {result.citations.map((c, i) => (
-                          <div key={`${c.source}-${c.page}-${i}`} className="citation-card">
-                            <div className="citation-card-top">
-                              <FileText size={13} />
-                              <span className="citation-source" title={c.source}>
-                                {c.source}
-                              </span>
-                            </div>
-                            <div className="citation-card-bottom">
-                              <span className="citation-page">Page {c.page}</span>
-                              {c.distance != null && (
-                                <span className="citation-distance">
-                                  dist: {Number(c.distance).toFixed(3)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -884,19 +1079,25 @@ function Workbench() {
           <form onSubmit={handleSubmit} className="composer-form">
             {selectedFile && (
               <div className="composer-attachment-chip">
-                {filePreview && (
-                  <img
-                    src={filePreview}
-                    alt="Attachment preview thumbnail"
-                    className="chip-thumbnail"
-                  />
+                {selectedFile.name.toLowerCase().endsWith(".pdf") ? (
+                  <div className="chip-pdf-preview" title="PDF Document">
+                    <FileText size={16} className="chip-pdf-icon" />
+                  </div>
+                ) : (
+                  filePreview && (
+                    <img
+                      src={filePreview}
+                      alt="Attachment preview thumbnail"
+                      className="chip-thumbnail"
+                    />
+                  )
                 )}
                 <div className="chip-info">
                   <span className="chip-filename" title={selectedFile.name}>
                     {selectedFile.name}
                   </span>
                   <span className="chip-filesize">
-                    ({(selectedFile.size / 1024).toFixed(0)} KB)
+                    ({(selectedFile.size / 1024).toFixed(0)} KB{selectedFile.name.toLowerCase().endsWith(".pdf") ? " • PDF" : ""})
                   </span>
                 </div>
                 <button
@@ -917,7 +1118,7 @@ function Workbench() {
                 ref={textareaRef}
                 className="composer-textarea"
                 maxLength={10000}
-                placeholder="Ask a follow-up or attach an engineering diagram (Enter to send)…"
+                placeholder="Ask a follow-up or attach a diagram/PDF (Enter to send)…"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -931,7 +1132,7 @@ function Workbench() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf"
                   style={{ display: "none" }}
                   onChange={handleFileSelect}
                   disabled={isRunning}
@@ -940,14 +1141,14 @@ function Workbench() {
                 <label
                   htmlFor="workbench-file-input-active"
                   className={`composer-tool-btn ${isRunning ? "disabled" : ""}`}
-                  title="Attach engineering diagram (PNG, JPG, WEBP up to 10MB)"
+                  title="Attach engineering diagram or PDF document (PNG, JPG, WEBP, PDF up to 10MB)"
                 >
                   <Paperclip size={15} />
                   <span>Attach file</span>
                 </label>
 
                 <span className="composer-multimodal-tag">
-                  <ImageIcon size={12} /> Vision Active
+                  <FileText size={12} /> Multimodal Active
                 </span>
               </div>
 

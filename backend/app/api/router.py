@@ -6,6 +6,7 @@ from app.api.agent import router as agent_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.authorization import router as authorization_router
+from app.api.system import router as system_router
 from app.schemas.api import ApiInfoResponse
 from app.services.api import get_api_info
 
@@ -14,6 +15,7 @@ router.include_router(auth_router)
 router.include_router(authorization_router)
 router.include_router(audit_router)
 router.include_router(agent_router)
+router.include_router(system_router)
 
 
 @router.get("", response_model=ApiInfoResponse, summary="Get API information")

@@ -54,6 +54,7 @@ def test_openapi_documentation_lists_only_implemented_endpoints() -> None:
         "/api/v1/agent/run",
         "/api/v1/authorization-demo/admin",
         "/api/v1/authorization-demo/operations",
+        "/api/v1/system/status",
     }
 
 
@@ -74,9 +75,7 @@ def test_openapi_documents_bearer_authentication() -> None:
         "/api/v1/authorization-demo/operations",
         "/api/v1/audit",
     ):
-        assert document["paths"][path]["get"]["security"] == [
-            {"HTTPBearer": []}
-        ]
+        assert document["paths"][path]["get"]["security"] == [{"HTTPBearer": []}]
     assert document["paths"]["/api/v1/agent/run"]["post"]["security"] == [
         {"HTTPBearer": []}
     ]

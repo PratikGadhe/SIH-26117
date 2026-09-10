@@ -74,11 +74,6 @@ function Sidebar() {
       icon: <Bot size={18} />,
     },
     {
-      name: "Document Analysis",
-      path: "/documents",
-      icon: <FileText size={18} />,
-    },
-    {
       name: "Generated Files",
       path: "/files",
       icon: <FolderOpen size={18} />,

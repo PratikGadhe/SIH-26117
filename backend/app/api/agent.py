@@ -11,7 +11,7 @@ from starlette.datastructures import UploadFile
 from app.api.dependencies import AgentServiceDependency, DatabaseConnection
 from app.api.dependencies import get_client_ip, require_roles
 from app.core.roles import Role
-from app.core.upload import secure_temporary_image
+from app.core.upload import secure_temporary_image, secure_temporary_upload
 from app.db.users import User
 from app.integrations.agent import AgentExecutionError, AgentResult, AgentTimeoutError
 from app.integrations.agent import AgentUnavailableError
@@ -97,14 +97,17 @@ async def run_agent(
         )
 
     if upload_file is not None:
-        with secure_temporary_image(upload_file) as temp_image_path:
+        with secure_temporary_upload(upload_file) as (temp_path, file_kind):
+            image_path = temp_path if file_kind == "image" else None
+            pdf_path = temp_path if file_kind == "pdf" else None
             result = _execute_service(
                 service=service,
                 connection=connection,
                 request=request,
                 user=user,
                 user_query=user_query,
-                image_path=temp_image_path,
+                image_path=image_path,
+                pdf_path=pdf_path,
             )
     else:
         result = _execute_service(
@@ -114,6 +117,7 @@ async def run_agent(
             user=user,
             user_query=user_query,
             image_path=None,
+            pdf_path=None,
         )
 
     record_agent_execution_success(
@@ -134,10 +138,11 @@ def _execute_service(
     request: Request,
     user: User,
     user_query: str,
-    image_path: str | None,
+    image_path: str | None = None,
+    pdf_path: str | None = None,
 ) -> AgentResult:
     try:
-        return service.run(user_query, image_path=image_path)
+        return service.run(user_query, image_path=image_path, pdf_path=pdf_path)
     except AgentTimeoutError as exc:
         _record_failure(connection, request, user, exc.audit_category)
         raise HTTPException(
