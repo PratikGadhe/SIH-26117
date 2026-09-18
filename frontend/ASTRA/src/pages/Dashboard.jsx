@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { getSystemStatus } from "../services/api";
+import vyasaMark from "../assets/vyasa-mark.png";
 
 const TASK_HISTORY_KEY = "astra_task_history";
 const ACTIVE_TASK_KEY = "astra_active_task";
@@ -153,10 +154,10 @@ function Dashboard() {
             <span>SOVEREIGN LOCAL AI ENVIRONMENT</span>
           </div>
 
-          <h1>Welcome to ASTRA</h1>
+          <h1>Welcome to VYASA</h1>
 
-          <div className="astra-full-name">
-            Autonomous Secure Task-Reasoning Agent
+          <div className="astra-full-name vyasa-full-name">
+            Vision-augmented Yield & Agentic Synthesis Architecture
           </div>
 
           <p>
@@ -189,10 +190,10 @@ function Dashboard() {
         </div>
 
         <div className="welcome-visual">
-          <div className="visual-circle">
-            <Cpu size={54} />
+          <div className="visual-circle vyasa-visual-circle">
+            <img src={vyasaMark} alt="VYASA" className="visual-logo-mark" />
           </div>
-          <span>LOCAL RUNTIME</span>
+          <span>VYASA RUNTIME</span>
         </div>
       </section>
 
@@ -293,7 +294,7 @@ function Dashboard() {
         <div className="section-header">
           <div>
             <h2>Quick Actions</h2>
-            <p>Direct entry points to sovereign ASTRA workspaces.</p>
+            <p>Direct entry points to sovereign VYASA workspaces.</p>
           </div>
         </div>
 
@@ -341,7 +342,7 @@ function Dashboard() {
             </div>
             <div className="quick-content">
               <h3>Generated Files</h3>
-              <p>View and download deliverables produced by ASTRA agents.</p>
+              <p>View and download deliverables produced by VYASA agents.</p>
             </div>
             <ArrowRight className="quick-arrow" size={18} />
           </div>

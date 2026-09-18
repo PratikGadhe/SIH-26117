@@ -1,5 +1,5 @@
 /* =========================================================
-   ASTRA AI WORKBENCH — CHATGPT-STYLE ENTERPRISE WORKSPACE
+   VYASA AI WORKBENCH — CHATGPT-STYLE ENTERPRISE WORKSPACE
    Sovereign, Modern, Multi-Theme (Light & Dark)
    ========================================================= */
 
@@ -46,6 +46,18 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.workspace-avatar-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+}
+
+[data-theme="dark"] .workspace-avatar {
+  background: rgba(14, 28, 48, 0.9);
+  border: 1px solid rgba(46, 160, 67, 0.35);
 }
 
 .workspace-name {
@@ -153,6 +165,20 @@
   justify-content: center;
   margin-bottom: 14px;
   box-shadow: 0 6px 20px rgba(104, 123, 53, 0.25);
+}
+
+.empty-hero-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
+}
+
+[data-theme="dark"] .empty-hero-icon {
+  background: rgba(14, 28, 48, 0.85);
+  border: 1px solid rgba(46, 160, 67, 0.35);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
 }
 
 .empty-hero h1 {
@@ -389,6 +415,18 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.assistant-avatar-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+}
+
+[data-theme="dark"] .assistant-avatar {
+  background: rgba(14, 28, 48, 0.9);
+  border: 1px solid rgba(46, 160, 67, 0.35);
 }
 
 .assistant-id strong {

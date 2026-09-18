@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ApiError, runAgent } from "../services/api";
+import vyasaMark from "../assets/vyasa-mark.png";
 import "./Workbench.css";
 
 const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
@@ -58,7 +59,7 @@ const PROMPT_CHIPS = [
   },
 ];
 
-// Lightweight, XSS-safe Markdown Formatter for ASTRA responses
+// Lightweight, XSS-safe Markdown Formatter for VYASA responses
 function parseInline(text) {
   const parts = [];
   const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
@@ -353,10 +354,10 @@ function AssistantMessageCard({ message }) {
         <div className="assistant-bubble-header">
           <div className="assistant-id">
             <div className="assistant-avatar">
-              <ShieldCheck size={18} />
+              <img src={vyasaMark} alt="VYASA" className="assistant-avatar-img" />
             </div>
             <div>
-              <strong>ASTRA</strong>
+              <strong>VYASA</strong>
               <span className="assistant-model-tag">Local Sovereign AI</span>
             </div>
           </div>
@@ -812,15 +813,15 @@ function Workbench() {
       <div className="workspace-header">
         <div className="workspace-header-title">
           <div className="workspace-avatar">
-            <ShieldCheck size={18} />
+            <img src={vyasaMark} alt="VYASA" className="workspace-avatar-img" />
           </div>
           <div>
             <div className="workspace-name">
-              ASTRA AI Workbench
+              VYASA AI Workbench
               <span className="workspace-badge">SOVEREIGN AIR-GAPPED</span>
             </div>
             <div className="workspace-meta">
-              Autonomous Secure Task-Reasoning Agent · Signed in as{" "}
+              Vision-augmented Yield & Agentic Synthesis Architecture · Signed in as{" "}
               <strong>{user?.username}</strong> ({user?.role})
             </div>
           </div>
@@ -847,9 +848,9 @@ function Workbench() {
           <div className="workbench-empty-state">
             <div className="empty-hero">
               <div className="empty-hero-icon">
-                <ShieldCheck size={32} />
+                <img src={vyasaMark} alt="VYASA" className="empty-hero-logo" />
               </div>
-              <h1>How can ASTRA help you today?</h1>
+              <h1>How can VYASA help you today?</h1>
               <p>
                 Your secure local AI workspace for technical documents, diagrams, and reasoning.
               </p>
@@ -915,7 +916,7 @@ function Workbench() {
                     ref={textareaRef}
                     className="composer-textarea"
                     maxLength={10000}
-                    placeholder="Ask ASTRA anything, or attach a diagram/PDF (Enter to send)…"
+                    placeholder="Ask VYASA anything, or attach a diagram/PDF (Enter to send)…"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -958,7 +959,7 @@ function Workbench() {
                       type="submit"
                       className="composer-send-btn"
                       disabled={!prompt.trim() || isRunning}
-                      title="Send task to ASTRA (Enter)"
+                      title="Send task to VYASA (Enter)"
                     >
                       {isRunning ? (
                         <Loader2 size={15} className="spin" />
@@ -1031,11 +1032,11 @@ function Workbench() {
                 <div className="chat-bubble assistant-bubble loading-bubble">
                   <div className="assistant-badge-row">
                     <div className="assistant-avatar pulse-avatar">
-                      <ShieldCheck size={18} />
+                      <img src={vyasaMark} alt="VYASA" className="assistant-avatar-img" />
                     </div>
-                    <strong>ASTRA</strong>
+                    <strong>VYASA</strong>
                     <span className="running-indicator">
-                      <Loader2 size={12} className="spin" /> ASTRA is reasoning…
+                      <Loader2 size={12} className="spin" /> VYASA is reasoning…
                     </span>
                   </div>
 
@@ -1161,7 +1162,7 @@ function Workbench() {
                   type="submit"
                   className="composer-send-btn"
                   disabled={!prompt.trim() || isRunning}
-                  title="Send task to ASTRA (Enter)"
+                  title="Send task to VYASA (Enter)"
                 >
                   {isRunning ? (
                     <Loader2 size={15} className="spin" />

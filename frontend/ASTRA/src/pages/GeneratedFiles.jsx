@@ -37,7 +37,7 @@ function GeneratedFiles() {
           <div className="gf-card-header">
             <div>
               <span className="gf-eyebrow light">DELIVERABLES</span>
-              <h2>ASTRA Generated Files</h2>
+              <h2>VYASA Generated Files</h2>
             </div>
             <span className="gf-result-count">0 available</span>
           </div>

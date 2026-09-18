@@ -57,7 +57,7 @@ function DocumentAnalysis() {
           </div>
 
           <button className="analyze-document-button" disabled>
-            <ScanSearch size={17} /> Analyze with ASTRA
+            <ScanSearch size={17} /> Analyze with VYASA
           </button>
         </section>
 

@@ -228,7 +228,7 @@ def test_direct_chat_synthesizer_prompt_rules():
     """Verify DIRECT_CHAT_SYNTHESIZER_PROMPT instructs clean direct answering without false document refusal."""
     prompt = DIRECT_CHAT_SYNTHESIZER_PROMPT
 
-    assert "ASTRA" in prompt
+    assert "VYASA" in prompt
     assert "knowledgeable and precise AI assistant" in prompt
     assert "Do not require an attached document" in prompt
     assert "Do not claim that an attachment is missing" in prompt
