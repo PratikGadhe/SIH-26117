@@ -4,6 +4,10 @@
 
 This project is developed for Smart India Hackathon 2026, Problem Statement 26117.
 
+### VYASA Research & Evidence
+
+The research landing page is available at [VYASA Research & Evidence](https://pratikgadhe.github.io/SIH-26117/).
+
 ### Technology Stack
 
 - Frontend: React + Vite
