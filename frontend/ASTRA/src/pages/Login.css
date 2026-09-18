@@ -33,6 +33,19 @@
   border-radius: 12px;
 }
 
+.vyasa-login-logo {
+  background: rgba(14, 28, 48, 0.9);
+  border: 1px solid rgba(46, 160, 67, 0.35);
+  padding: 6px;
+}
+
+.login-brand-mark {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .login-brand div, .login-heading {
   display: flex;
   flex-direction: column;

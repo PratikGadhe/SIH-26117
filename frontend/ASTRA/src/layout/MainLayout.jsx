@@ -10,13 +10,13 @@ function MainLayout() {
   const pageInfo = {
 
     "/": {
-      title: "ASTRA Dashboard",
+      title: "VYASA Dashboard",
       description:
-        "Autonomous Secure Task-Reasoning Agent",
+        "Vision-augmented Yield & Agentic Synthesis Architecture",
     },
 
     "/workbench": {
-      title: "ASTRA AI Workbench",
+      title: "VYASA AI Workbench",
       description:
         "Run intelligent tasks using secure local AI models",
     },
@@ -24,7 +24,7 @@ function MainLayout() {
     "/documents": {
       title: "Document Analysis",
       description:
-        "Analyze confidential documents using ASTRA",
+        "Analyze confidential documents using VYASA",
     },
 
     "/knowledge": {
@@ -36,17 +36,17 @@ function MainLayout() {
     "/agent": {
       title: "Agent Execution",
       description:
-        "Monitor ASTRA agents and tool execution",
+        "Monitor VYASA agents and tool execution",
     },
 
     "/files": {
       title: "Generated Files",
       description:
-        "View and manage ASTRA-generated deliverables",
+        "View and manage VYASA-generated deliverables",
     },
 
     "/chatbot": {
-      title: "ASTRA Assistant",
+      title: "VYASA Assistant",
       description:
         "Conversation mode is not connected in Phase 9A",
     },

@@ -4,12 +4,12 @@ import {
   Bot,
   FileText,
   FolderOpen,
-  ShieldCheck,
   History,
   Trash2,
   Image as ImageIcon,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import vyasaMark from "../assets/vyasa-mark.png";
 
 function getStoredRecentTasks() {
   try {
@@ -84,14 +84,14 @@ function Sidebar() {
     <aside className="sidebar">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="logo-icon">
-          <ShieldCheck size={22} />
+        <div className="logo-icon vyasa-logo-icon">
+          <img src={vyasaMark} alt="VYASA" className="sidebar-brand-mark" />
         </div>
 
         <div className="logo-text">
-          <div className="logo-title">ASTRA</div>
+          <div className="logo-title">VYASA</div>
           <div className="logo-subtitle">
-            Autonomous Secure Task-Reasoning Agent
+            Vision-augmented Yield & Agentic Synthesis Architecture
           </div>
         </div>
       </div>

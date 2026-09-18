@@ -22,7 +22,7 @@ const initialMessages = [
     id: 1,
     role: "assistant",
     text:
-      "Hello! I am ASTRA, your secure local AI assistant. I can analyze documents, search your internal knowledge base, and execute multi-step tasks without sending your data to external services.",
+      "Hello! I am VYASA, your secure local AI assistant. I can analyze documents, search your internal knowledge base, and execute multi-step tasks without sending your data to external services.",
     time: "Now",
   },
 ];
@@ -138,7 +138,7 @@ function Chatbot() {
           id: Date.now() + 1,
           role: "assistant",
           text:
-            "I processed your request using ASTRA's local agent workflow. The relevant internal knowledge was retrieved and used as context for the response. This demo is currently running with simulated local-agent behavior; the FastAPI + ChromaDB + local LLM backend can be connected next.",
+            "I processed your request using VYASA's local agent workflow. The relevant internal knowledge was retrieved and used as context for the response. This demo is currently running with simulated local-agent behavior; the FastAPI + ChromaDB + local LLM backend can be connected next.",
           sources: [
             "Safety_SOP.pdf",
             "Equipment_Manual.pdf",
@@ -172,9 +172,9 @@ function Chatbot() {
       <section className="chat-hero">
         <div>
           <span className="eyebrow">SECURE AGENTIC AI ASSISTANT</span>
-          <h1>ASTRA Assistant</h1>
+          <h1>VYASA Assistant</h1>
           <p>
-            Ask ASTRA to search internal knowledge, analyze documents, and
+            Ask VYASA to search internal knowledge, analyze documents, and
             execute multi-step tasks using local AI tools.
           </p>
         </div>
@@ -193,8 +193,8 @@ function Chatbot() {
                 <Bot size={21} />
               </div>
               <div>
-                <h2>ASTRA</h2>
-                <span>Autonomous Secure Task-Reasoning Agent</span>
+                <h2>VYASA</h2>
+                <span>Vision-augmented Yield & Agentic Synthesis Architecture</span>
               </div>
             </div>
 
@@ -213,7 +213,7 @@ function Chatbot() {
 
                 <div className="message-content">
                   <div className="message-meta">
-                    <strong>{message.role === "assistant" ? "ASTRA" : "You"}</strong>
+                    <strong>{message.role === "assistant" ? "VYASA" : "You"}</strong>
                     <span>{message.time}</span>
                   </div>
 
@@ -265,14 +265,14 @@ function Chatbot() {
                 </div>
                 <div className="message-content">
                   <div className="message-meta">
-                    <strong>ASTRA</strong>
+                    <strong>VYASA</strong>
                     <span>Working...</span>
                   </div>
                   <div className="thinking-bubble">
                     <span />
                     <span />
                     <span />
-                    ASTRA is processing your request locally
+                    VYASA is processing your request locally
                   </div>
                 </div>
               </div>
@@ -281,7 +281,7 @@ function Chatbot() {
 
           {messages.length === 1 && (
             <div className="suggestion-area">
-              <div className="suggestion-title">Try asking ASTRA</div>
+              <div className="suggestion-title">Try asking VYASA</div>
               <div className="suggestion-grid">
                 {suggestions.map(({ title, text, icon: Icon }) => (
                   <button
@@ -332,7 +332,7 @@ function Chatbot() {
               <input
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask ASTRA to analyze, search, reason, or create..."
+                placeholder="Ask VYASA to analyze, search, reason, or create..."
                 disabled={running}
               />
 
@@ -348,7 +348,7 @@ function Chatbot() {
 
             <div className="composer-note">
               <ShieldCheck size={13} />
-              Your data stays inside the local ASTRA environment.
+              Your data stays inside the local VYASA environment.
             </div>
           </form>
         </section>

@@ -57,7 +57,7 @@ function AgentExecution() {
       {
         time: new Date().toLocaleTimeString([], { hour12: false }),
         type: "system",
-        text: "ASTRA agent started a new task.",
+        text: "VYASA agent started a new task.",
       },
     ]);
 
@@ -136,7 +136,7 @@ function AgentExecution() {
           </div>
           <h1>Agent Execution</h1>
           <p>
-            Watch ASTRA plan, reason, call tools, retrieve knowledge and
+            Watch VYASA plan, reason, call tools, retrieve knowledge and
             complete multi-step tasks locally.
           </p>
         </div>
@@ -175,7 +175,7 @@ function AgentExecution() {
           <div className="card-heading">
             <div>
               <h2>Agent Reasoning Pipeline</h2>
-              <p>ASTRA autonomously moves from one action to the next.</p>
+              <p>VYASA autonomously moves from one action to the next.</p>
             </div>
             <span className="local-pill"><ShieldCheck size={14} /> Local execution</span>
           </div>

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LockKeyhole, ShieldCheck } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../services/api";
+import vyasaMark from "../assets/vyasa-mark.png";
 import "./Login.css";
 
 function Login() {
@@ -41,10 +42,12 @@ function Login() {
     <main className="login-page">
       <section className="login-card">
         <div className="login-brand">
-          <span className="login-logo"><ShieldCheck size={26} /></span>
+          <span className="login-logo vyasa-login-logo">
+            <img src={vyasaMark} alt="VYASA" className="login-brand-mark" />
+          </span>
           <div>
-            <strong>ASTRA</strong>
-            <span>Cognivault local workbench</span>
+            <strong>VYASA</strong>
+            <span>Vision-augmented Yield &amp; Agentic Synthesis Architecture</span>
           </div>
         </div>
 
@@ -81,7 +84,7 @@ function Login() {
           {error && <div className="login-error" role="alert">{error}</div>}
 
           <button disabled={submitting} type="submit">
-            {submitting ? "Signing in…" : "Sign in to ASTRA"}
+            {submitting ? "Signing in…" : "Sign in to VYASA"}
           </button>
         </form>
 

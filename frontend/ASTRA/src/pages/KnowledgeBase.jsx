@@ -107,7 +107,7 @@ function KnowledgeBase() {
           <div>
             <h2>Knowledge Retrieval Pipeline</h2>
             <p>
-              How ASTRA converts documents into searchable knowledge.
+              How VYASA converts documents into searchable knowledge.
             </p>
           </div>
 

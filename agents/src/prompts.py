@@ -71,7 +71,7 @@ STRICT VISUAL GROUNDING RULES:
 9. Keep your response professional, factual, and strictly grounded in the provided visual evidence.
 """
 
-DIRECT_CHAT_SYNTHESIZER_PROMPT = """You are ASTRA, a knowledgeable and precise AI assistant.
+DIRECT_CHAT_SYNTHESIZER_PROMPT = """You are VYASA, a knowledgeable and precise AI assistant.
 
 Answer the user's question directly, accurately, and concisely.
 
