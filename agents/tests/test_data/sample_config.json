@@ -1,0 +1,16 @@
+{
+  "plant": "MRPL Refinery Unit 4",
+  "version": "2026.1",
+  "limits": {
+    "vibration_warning_mm_s": 5.0,
+    "vibration_critical_mm_s": 7.0,
+    "temperature_warning_c": 80.0,
+    "temperature_critical_c": 90.0,
+    "max_operating_hours": 8000
+  },
+  "safety_contacts": [
+    "lead.engineer@mrpl.local",
+    "shift.supervisor@mrpl.local"
+  ]
+}
+

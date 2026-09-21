@@ -38,15 +38,16 @@ def successful_result(response: str = "Normalized answer") -> AgentResult:
 class FakeAgentRunner:
     def __init__(self, result: AgentResult | None = None) -> None:
         self.result = result or successful_result()
-        self.calls: list[tuple[str, str | None, str | None]] = []
+        self.calls: list[tuple[str, str | None, str | None, str | None]] = []
 
     def run(
         self,
         user_query: str,
         image_path: str | None = None,
         pdf_path: str | None = None,
+        csv_path: str | None = None,
     ) -> AgentResult:
-        self.calls.append((user_query, image_path, pdf_path))
+        self.calls.append((user_query, image_path, pdf_path, csv_path))
         return self.result
 
 
@@ -59,6 +60,7 @@ class FailingAgentRunner:
         user_query: str,
         image_path: str | None = None,
         pdf_path: str | None = None,
+        csv_path: str | None = None,
     ) -> AgentResult:
         raise self.error_type("internal subsystem detail")
 
@@ -130,7 +132,7 @@ def test_allowed_role_executes_agent(
     )
 
     assert response.status_code == 200
-    assert runner.calls == [("Inspect the process", None, None)]
+    assert runner.calls == [("Inspect the process", None, None, None)]
     assert response.json() == {
         "status": "success",
         "response": "Normalized answer",
@@ -273,6 +275,7 @@ def test_adapter_normalizes_real_agent_contract_without_raw_state() -> None:
         "user_query": "Check SOP",
         "image_path": "diagram.png",
         "pdf_path": "manual.pdf",
+        "csv_path": None,
     }
     assert result == AgentResult(
         status="success",
@@ -412,6 +415,9 @@ VALID_JPEG_BYTES = (
     b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xff\xdb"
 )
 VALID_PDF_BYTES = b"%PDF-1.5\n%test PDF header content\n%%EOF"
+VALID_CSV_BYTES = (
+    b"equipment_id,category,vibration_mm_s\nP-101,Pump,2.1\nP-102,Pump,5.8\n"
+)
 
 
 async def send_multipart_request(
@@ -452,11 +458,12 @@ def test_valid_png_upload_passes_temporary_file_and_cleans_up(
 
     assert response.status_code == 200
     assert len(runner.calls) == 1
-    query, image_path, pdf_path = runner.calls[0]
+    query, image_path, pdf_path, csv_path = runner.calls[0]
     assert query == "Inspect pump schematic"
     assert image_path is not None
     assert image_path.endswith(".png")
     assert pdf_path is None
+    assert csv_path is None
     # Verify temporary file was deleted after request execution
     assert not Path(image_path).exists()
 
@@ -582,6 +589,7 @@ def test_temporary_file_cleaned_up_on_agent_failure(
             user_query: str,
             image_path: str | None = None,
             pdf_path: str | None = None,
+            csv_path: str | None = None,
         ) -> AgentResult:
             captured_paths.append(image_path)
             raise AgentExecutionError("Internal model execution failure")
@@ -653,7 +661,7 @@ def test_multipart_without_file_executes_as_text_only(
     )
 
     assert response.status_code == 200
-    assert runner.calls == [("Form text only query", None, None)]
+    assert runner.calls == [("Form text only query", None, None, None)]
 
 
 def test_valid_pdf_upload_executes_pdf_workflow(
@@ -674,11 +682,12 @@ def test_valid_pdf_upload_executes_pdf_workflow(
 
     assert response.status_code == 200
     assert len(runner.calls) == 1
-    query, image_path, pdf_path = runner.calls[0]
+    query, image_path, pdf_path, csv_path = runner.calls[0]
     assert query == "Analyze inspection report"
     assert image_path is None
     assert pdf_path is not None
     assert pdf_path.endswith(".pdf")
+    assert csv_path is None
     assert not Path(pdf_path).exists()
 
 
@@ -759,6 +768,7 @@ def test_temporary_pdf_cleaned_up_on_agent_failure(
             user_query: str,
             image_path: str | None = None,
             pdf_path: str | None = None,
+            csv_path: str | None = None,
         ) -> AgentResult:
             captured_paths.append(pdf_path)
             raise AgentExecutionError("Internal model execution failure")
@@ -770,6 +780,134 @@ def test_temporary_pdf_cleaned_up_on_agent_failure(
             application,
             {"user_query": "Analyze document"},
             {"file": ("report.pdf", VALID_PDF_BYTES, "application/pdf")},
+            token,
+        )
+    )
+
+    assert response.status_code == 502
+    assert len(captured_paths) == 1
+    assert captured_paths[0] is not None
+    assert not Path(captured_paths[0]).exists()
+
+
+def test_valid_csv_upload_passes_temporary_file_and_cleans_up(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {
+                "user_query": "Identify every equipment item exceeding 5.0 mm/s vibration"
+            },
+            {"file": ("equipment.csv", VALID_CSV_BYTES, "text/csv")},
+            token,
+        )
+    )
+
+    assert response.status_code == 200
+    assert len(runner.calls) == 1
+    query, image_path, pdf_path, csv_path = runner.calls[0]
+    assert query == "Identify every equipment item exceeding 5.0 mm/s vibration"
+    assert image_path is None
+    assert pdf_path is None
+    assert csv_path is not None
+    assert csv_path.endswith(".csv")
+    assert not Path(csv_path).exists()
+
+
+def test_binary_csv_rejected_with_415(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Analyze data"},
+            {"file": ("malicious.csv", b"col1,col2\x00\xffbinary", "text/csv")},
+            token,
+        )
+    )
+
+    assert response.status_code == 415
+    assert "does not match" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_empty_csv_rejected_with_400(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Analyze data"},
+            {"file": ("empty.csv", b"", "text/csv")},
+            token,
+        )
+    )
+
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_oversized_csv_rejected_with_413(
+    test_app: FastAPI,
+    settings: Settings,
+    runner: FakeAgentRunner,
+) -> None:
+    _, token = provision_token(settings, Role.WORKER)
+
+    oversized_data = VALID_CSV_BYTES + (b"A" * (10 * 1024 * 1024 + 1))
+    response = asyncio.run(
+        send_multipart_request(
+            test_app,
+            {"user_query": "Analyze data"},
+            {"file": ("huge.csv", oversized_data, "text/csv")},
+            token,
+        )
+    )
+
+    assert response.status_code == 413
+    assert "exceeds" in response.json()["detail"]
+    assert runner.calls == []
+
+
+def test_temporary_csv_cleaned_up_on_agent_failure(
+    settings: Settings,
+) -> None:
+    initialize_database(settings.database_path)
+    _, token = provision_token(settings, Role.WORKER)
+    captured_paths = []
+
+    class CapturingFailingRunner:
+        def run(
+            self,
+            user_query: str,
+            image_path: str | None = None,
+            pdf_path: str | None = None,
+            csv_path: str | None = None,
+        ) -> AgentResult:
+            captured_paths.append(csv_path)
+            raise AgentExecutionError("Internal model execution failure")
+
+    application = create_app(settings, agent_runner=CapturingFailingRunner())
+
+    response = asyncio.run(
+        send_multipart_request(
+            application,
+            {"user_query": "Analyze dataset"},
+            {"file": ("sample.csv", VALID_CSV_BYTES, "text/csv")},
             token,
         )
     )

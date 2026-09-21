@@ -15,9 +15,10 @@ class AgentService:
         user_query: str,
         image_path: str | None = None,
         pdf_path: str | None = None,
+        csv_path: str | None = None,
     ) -> AgentResult:
         try:
-            return self._runner.run(user_query, image_path, pdf_path)
+            return self._runner.run(user_query, image_path, pdf_path, csv_path)
         except AgentIntegrationError:
             raise
         except Exception as exc:

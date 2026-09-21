@@ -13,7 +13,10 @@ MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 MAX_IMAGE_SIZE_BYTES = MAX_UPLOAD_SIZE_BYTES  # Backward compatibility
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_DOCUMENT_EXTENSIONS = {".pdf"}
-ALLOWED_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS
+ALLOWED_DATA_EXTENSIONS = {".csv"}
+ALLOWED_EXTENSIONS = (
+    ALLOWED_IMAGE_EXTENSIONS | ALLOWED_DOCUMENT_EXTENSIONS | ALLOWED_DATA_EXTENSIONS
+)
 
 
 def validate_image_magic_bytes(data: bytes, extension: str) -> bool:
@@ -32,12 +35,27 @@ def validate_pdf_magic_bytes(data: bytes) -> bool:
     return data.startswith(b"%PDF-")
 
 
+def validate_csv_content(data: bytes) -> bool:
+    """Verify that file content is non-empty, valid text, and structured tabular CSV."""
+    if not data or b"\x00" in data:
+        return False
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return len(lines) >= 1
+
+
 def validate_file_magic_bytes(data: bytes, extension: str) -> bool:
-    """Validate magic bytes for any supported image or document extension."""
+    """Validate magic bytes or content structure for supported image, document, or data extension."""
     if extension in ALLOWED_IMAGE_EXTENSIONS:
         return validate_image_magic_bytes(data, extension)
     if extension in ALLOWED_DOCUMENT_EXTENSIONS:
         return validate_pdf_magic_bytes(data)
+    if extension in ALLOWED_DATA_EXTENSIONS:
+        return validate_csv_content(data)
     return False
 
 
@@ -55,7 +73,7 @@ def secure_temporary_upload(upload_file: UploadFile) -> Iterator[tuple[str, str]
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Unsupported file format. Allowed formats: PNG, JPG, JPEG, WEBP, PDF.",
+            detail="Unsupported file format. Allowed formats: PNG, JPG, JPEG, WEBP, PDF, CSV.",
         )
 
     # Read content up to max limit + 1 byte to detect oversizing safely
@@ -84,7 +102,12 @@ def secure_temporary_upload(upload_file: UploadFile) -> Iterator[tuple[str, str]
     temp_path = temp_dir / safe_filename
 
     temp_path.write_bytes(content)
-    file_kind = "pdf" if suffix in ALLOWED_DOCUMENT_EXTENSIONS else "image"
+    if suffix in ALLOWED_DOCUMENT_EXTENSIONS:
+        file_kind = "pdf"
+    elif suffix in ALLOWED_DATA_EXTENSIONS:
+        file_kind = "csv"
+    else:
+        file_kind = "image"
     try:
         yield str(temp_path), file_kind
     finally:

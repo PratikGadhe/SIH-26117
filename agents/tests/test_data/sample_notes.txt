@@ -1,0 +1,9 @@
+MRPL REFINERY MAINTENANCE NOTES - UNIT 4
+Date: 2026-08-15
+Inspector: Lead Mechanical Engineer
+
+1. Pump P-102 showed elevated vibration levels during the last shift cycle. Scheduled for bearing inspection.
+2. Compressor C-202 has exceeded the maximum vibration ceiling (7.9 mm/s vs 7.0 mm/s limit) and temperature limit (96.4 C vs 90.0 C limit). Immediate shutdown recommended.
+3. Valve V-301 and V-302 passed hydraulic leak checks with zero pressure drop.
+4. Routine calibration of thermal relief devices is completed on line 12.
+

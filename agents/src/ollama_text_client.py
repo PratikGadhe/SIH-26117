@@ -152,18 +152,24 @@ class OllamaTextClient:
                 "error": "Ollama service is not running. Please run 'brew services start ollama' or 'ollama serve'.",
             }
 
+        options_dict = {"temperature": temperature, "top_p": top_p}
+        if max_tokens:
+            options_dict["num_predict"] = max_tokens
+        else:
+            options_dict["num_predict"] = 1024
+
         payload: Dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
             "stream": stream,
-            "options": {"temperature": temperature, "top_p": top_p},
+            "options": options_dict,
         }
 
         if system_prompt:
             payload["system"] = system_prompt
 
         # Bound generation length so local Apple Silicon inference finishes promptly
-        limit = max_tokens if max_tokens is not None else 768
+        limit = max_tokens if max_tokens is not None else 2048
         payload["options"]["num_predict"] = limit
 
         start_time = time.time()
@@ -178,12 +184,6 @@ class OllamaTextClient:
             # Response hygiene: prioritize 'response', strip any <think> tags or reasoning leaks
             raw_resp = data.get("response", "").strip()
             resp_text = strip_reasoning_and_thinking(raw_resp)
-
-            # If response was empty after cleaning and thinking exists, treat thinking as internal metadata
-            # and strip reasoning from it
-            if not resp_text and "thinking" in data:
-                raw_thinking = data.get("thinking", "").strip()
-                resp_text = strip_reasoning_and_thinking(raw_thinking)
 
             return {
                 "status": "success",

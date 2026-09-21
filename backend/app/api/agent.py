@@ -100,6 +100,7 @@ async def run_agent(
         with secure_temporary_upload(upload_file) as (temp_path, file_kind):
             image_path = temp_path if file_kind == "image" else None
             pdf_path = temp_path if file_kind == "pdf" else None
+            csv_path = temp_path if file_kind == "csv" else None
             result = _execute_service(
                 service=service,
                 connection=connection,
@@ -108,6 +109,7 @@ async def run_agent(
                 user_query=user_query,
                 image_path=image_path,
                 pdf_path=pdf_path,
+                csv_path=csv_path,
             )
     else:
         result = _execute_service(
@@ -118,6 +120,7 @@ async def run_agent(
             user_query=user_query,
             image_path=None,
             pdf_path=None,
+            csv_path=None,
         )
 
     record_agent_execution_success(
@@ -140,9 +143,15 @@ def _execute_service(
     user_query: str,
     image_path: str | None = None,
     pdf_path: str | None = None,
+    csv_path: str | None = None,
 ) -> AgentResult:
     try:
-        return service.run(user_query, image_path=image_path, pdf_path=pdf_path)
+        return service.run(
+            user_query,
+            image_path=image_path,
+            pdf_path=pdf_path,
+            csv_path=csv_path,
+        )
     except AgentTimeoutError as exc:
         _record_failure(connection, request, user, exc.audit_category)
         raise HTTPException(
