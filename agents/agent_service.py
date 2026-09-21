@@ -19,7 +19,8 @@ from src.graph import agent_graph
 def run_agentic_workflow(
     user_query: str,
     image_path: Optional[str] = None,
-    pdf_path: Optional[str] = None
+    pdf_path: Optional[str] = None,
+    csv_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Executes the Sovereign Multi-Agent LangGraph workflow.
@@ -28,6 +29,7 @@ def run_agentic_workflow(
         user_query: The engineer's question or instruction.
         image_path: Optional file path to a P&ID diagram, schematic, or equipment photo.
         pdf_path: Optional file path to a technical document or PDF manual.
+        csv_path: Optional file path to a structured CSV data table.
 
     Returns:
         Structured response dictionary matching the master API contract.
@@ -38,6 +40,7 @@ def run_agentic_workflow(
         "user_query": user_query,
         "image_path": image_path,
         "pdf_path": pdf_path,
+        "csv_path": csv_path,
         "task_type": "DIRECT_CHAT",
         "plan": [],
         "vision_data": None,
@@ -45,7 +48,11 @@ def run_agentic_workflow(
         "steps_log": [],
         "citations": [],
         "final_answer": "",
-        "status": "in_progress"
+        "status": "in_progress",
+        "pending_tool_call": None,
+        "tool_results": [],
+        "tool_call_count": 0,
+        "max_tool_calls": 5,
     }
 
     try:
@@ -59,7 +66,7 @@ def run_agentic_workflow(
             "citations": final_state.get("citations", []),
             "steps_taken": final_state.get("steps_log", []),
             "execution_time_seconds": elapsed_seconds,
-            "air_gapped": True
+            "air_gapped": True,
         }
 
     except Exception as e:
@@ -71,11 +78,13 @@ def run_agentic_workflow(
             "citations": [],
             "steps_taken": initial_state.get("steps_log", []),
             "execution_time_seconds": elapsed_seconds,
-            "air_gapped": True
+            "air_gapped": True,
         }
 
 
 if __name__ == "__main__":
     print("Testing Agent Service CLI:")
-    res = run_agentic_workflow("What is the primary function of a flare stack in an oil refinery?")
+    res = run_agentic_workflow(
+        "What is the primary function of a flare stack in an oil refinery?"
+    )
     print(res["final_answer"])

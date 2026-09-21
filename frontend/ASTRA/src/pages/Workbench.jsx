@@ -25,7 +25,12 @@ import "./Workbench.css";
 
 const ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
 const ALLOWED_DOCUMENT_EXTENSIONS = [".pdf"];
-const ALLOWED_EXTENSIONS = [...ALLOWED_IMAGE_EXTENSIONS, ...ALLOWED_DOCUMENT_EXTENSIONS];
+const ALLOWED_DATA_EXTENSIONS = [".csv"];
+const ALLOWED_EXTENSIONS = [
+  ...ALLOWED_IMAGE_EXTENSIONS,
+  ...ALLOWED_DOCUMENT_EXTENSIONS,
+  ...ALLOWED_DATA_EXTENSIONS,
+];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 const ACTIVE_TASK_KEY = "astra_active_task";
@@ -254,6 +259,7 @@ function getStoredActiveConversation() {
     // Convert legacy single-task format { query, result, ... } into conversation
     if (parsed.query && parsed.result) {
       const isPdf = parsed.fileType === "pdf" || parsed.fileName?.toLowerCase().endsWith(".pdf");
+      const isCsv = parsed.fileType === "csv" || parsed.fileName?.toLowerCase().endsWith(".csv");
       const userMsg = {
         id: `msg-${parsed.id || Date.now()}-u`,
         role: "user",
@@ -263,7 +269,7 @@ function getStoredActiveConversation() {
           ? {
               name: parsed.fileName,
               size: 0,
-              type: isPdf ? "pdf" : "image",
+              type: isPdf ? "pdf" : isCsv ? "csv" : "image",
             }
           : null,
       };
@@ -439,17 +445,25 @@ function AssistantMessageCard({ message }) {
               <strong>Agent Execution Activity</strong>
             </div>
             <div className="timeline-steps">
-              {message.steps.map((step) => (
-                <div key={`${step.step}-${step.agent}`} className="timeline-step">
-                  <div className="step-badge">
-                    <span>{step.step}</span>
+              {message.steps.map((step) => {
+                const isTool = step.agent?.startsWith("Tool:");
+                return (
+                  <div
+                    key={`${step.step}-${step.agent}`}
+                    className={`timeline-step ${isTool ? "tool-step" : ""}`}
+                  >
+                    <div className={`step-badge ${isTool ? "tool-step-badge" : ""}`}>
+                      <span>{step.step}</span>
+                    </div>
+                    <div className="step-details">
+                      <strong className={`step-agent ${isTool ? "is-tool" : ""}`}>
+                        {step.agent}
+                      </strong>
+                      <span className="step-action">{step.action}</span>
+                    </div>
                   </div>
-                  <div className="step-details">
-                    <strong className="step-agent">{step.agent}</strong>
-                    <span className="step-action">{step.action}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -538,6 +552,7 @@ function Workbench() {
         });
       } else if (task.query && task.result) {
         const isPdf = task.fileType === "pdf" || task.fileName?.toLowerCase().endsWith(".pdf");
+        const isCsv = task.fileType === "csv" || task.fileName?.toLowerCase().endsWith(".csv");
         setConversation({
           conversationId: task.id || `conv-${Date.now()}`,
           messages: [
@@ -550,7 +565,7 @@ function Workbench() {
                 ? {
                     name: task.fileName,
                     size: 0,
-                    type: isPdf ? "pdf" : "image",
+                    type: isPdf ? "pdf" : isCsv ? "csv" : "image",
                   }
                 : null,
             },
@@ -593,7 +608,9 @@ function Workbench() {
     );
 
     if (!isValidExtension) {
-      setError("Unsupported file format. Please attach a PNG, JPG, JPEG, WEBP image, or PDF document.");
+      setError(
+        "Unsupported file format. Please attach an image (PNG, JPG, WEBP), PDF document, or CSV dataset."
+      );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -608,8 +625,9 @@ function Workbench() {
     setSelectedFile(file);
 
     const isPdf = lowerName.endsWith(".pdf");
-    if (isPdf) {
-      // PDF documents don't use image Data URLs
+    const isCsv = lowerName.endsWith(".csv");
+    if (isPdf || isCsv) {
+      // PDF documents and CSV datasets don't use image Data URLs
       setFilePreview(null);
     } else {
       // Read preview as Data URL for in-memory display during current turn
@@ -671,6 +689,9 @@ function Workbench() {
       const isPdf = Boolean(
         conv.messages.some((m) => m.fileMeta?.type === "pdf")
       );
+      const isCsv = Boolean(
+        conv.messages.some((m) => m.fileMeta?.type === "csv")
+      );
       const fileName =
         conv.messages.find((m) => m.fileMeta)?.fileMeta?.name || lastFile?.name || "";
 
@@ -678,8 +699,8 @@ function Workbench() {
         id: conv.conversationId,
         query: firstQuery,
         hasImage,
-        hasFile: hasImage || isPdf,
-        fileType: isPdf ? "pdf" : (hasImage ? "image" : null),
+        hasFile: hasImage || isPdf || isCsv,
+        fileType: isPdf ? "pdf" : isCsv ? "csv" : hasImage ? "image" : null,
         fileName,
         result: lastResult || null,
         messages: sanitized.messages,
@@ -708,6 +729,7 @@ function Workbench() {
     const currentFile = overrideFile !== undefined ? overrideFile : selectedFile;
     const currentPreview = overrideFile !== undefined ? null : filePreview;
     const isPdf = currentFile?.name?.toLowerCase().endsWith(".pdf");
+    const isCsv = currentFile?.name?.toLowerCase().endsWith(".csv");
 
     const userMessage = {
       id: `msg-${Date.now()}-u`,
@@ -718,10 +740,10 @@ function Workbench() {
         ? {
             name: currentFile.name,
             size: currentFile.size,
-            type: isPdf ? "pdf" : "image",
+            type: isPdf ? "pdf" : isCsv ? "csv" : "image",
           }
         : null,
-      filePreview: isPdf ? null : currentPreview,
+      filePreview: isPdf || isCsv ? null : currentPreview,
     };
 
     // Append user message to conversation
@@ -881,6 +903,10 @@ function Workbench() {
                       <div className="chip-pdf-preview" title="PDF Document">
                         <FileText size={16} className="chip-pdf-icon" />
                       </div>
+                    ) : selectedFile.name.toLowerCase().endsWith(".csv") ? (
+                      <div className="chip-pdf-preview" title="CSV Dataset">
+                        <Database size={16} className="chip-pdf-icon" />
+                      </div>
                     ) : (
                       filePreview && (
                         <img
@@ -895,7 +921,12 @@ function Workbench() {
                         {selectedFile.name}
                       </span>
                       <span className="chip-filesize">
-                        ({(selectedFile.size / 1024).toFixed(0)} KB{selectedFile.name.toLowerCase().endsWith(".pdf") ? " • PDF" : ""})
+                        ({(selectedFile.size / 1024).toFixed(0)} KB
+                        {selectedFile.name.toLowerCase().endsWith(".pdf")
+                          ? " • PDF"
+                          : selectedFile.name.toLowerCase().endsWith(".csv")
+                          ? " • CSV Data"
+                          : ""})
                       </span>
                     </div>
                     <button
@@ -916,7 +947,7 @@ function Workbench() {
                     ref={textareaRef}
                     className="composer-textarea"
                     maxLength={10000}
-                    placeholder="Ask VYASA anything, or attach a diagram/PDF (Enter to send)…"
+                    placeholder="Ask VYASA anything, or attach a diagram, PDF, or CSV (Enter to send)…"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -930,7 +961,7 @@ function Workbench() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf"
+                      accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf,.csv,text/csv"
                       style={{ display: "none" }}
                       onChange={handleFileSelect}
                       disabled={isRunning}
@@ -939,7 +970,7 @@ function Workbench() {
                     <label
                       htmlFor="workbench-file-input-empty"
                       className={`composer-tool-btn ${isRunning ? "disabled" : ""}`}
-                      title="Attach engineering diagram or PDF document (PNG, JPG, WEBP, PDF up to 10MB)"
+                      title="Attach engineering diagram, PDF document, or CSV dataset (PNG, JPG, WEBP, PDF, CSV up to 10MB)"
                     >
                       <Paperclip size={15} />
                       <span>Attach file</span>
@@ -993,6 +1024,14 @@ function Workbench() {
                               <FileText size={15} className="attached-document-icon" />
                               <span className="attached-media-name">{message.fileMeta.name}</span>
                               <span className="attached-file-badge">PDF</span>
+                            </div>
+                          </div>
+                        ) : message.fileMeta.type === "csv" ? (
+                          <div className="attached-media-card attached-document-card">
+                            <div className="attached-media-meta">
+                              <Database size={15} className="attached-document-icon" />
+                              <span className="attached-media-name">{message.fileMeta.name}</span>
+                              <span className="attached-file-badge">CSV DATA</span>
                             </div>
                           </div>
                         ) : (
@@ -1084,6 +1123,10 @@ function Workbench() {
                   <div className="chip-pdf-preview" title="PDF Document">
                     <FileText size={16} className="chip-pdf-icon" />
                   </div>
+                ) : selectedFile.name.toLowerCase().endsWith(".csv") ? (
+                  <div className="chip-pdf-preview" title="CSV Dataset">
+                    <Database size={16} className="chip-pdf-icon" />
+                  </div>
                 ) : (
                   filePreview && (
                     <img
@@ -1098,7 +1141,12 @@ function Workbench() {
                     {selectedFile.name}
                   </span>
                   <span className="chip-filesize">
-                    ({(selectedFile.size / 1024).toFixed(0)} KB{selectedFile.name.toLowerCase().endsWith(".pdf") ? " • PDF" : ""})
+                    ({(selectedFile.size / 1024).toFixed(0)} KB
+                    {selectedFile.name.toLowerCase().endsWith(".pdf")
+                      ? " • PDF"
+                      : selectedFile.name.toLowerCase().endsWith(".csv")
+                      ? " • CSV Data"
+                      : ""})
                   </span>
                 </div>
                 <button
@@ -1119,7 +1167,7 @@ function Workbench() {
                 ref={textareaRef}
                 className="composer-textarea"
                 maxLength={10000}
-                placeholder="Ask a follow-up or attach a diagram/PDF (Enter to send)…"
+                placeholder="Ask a follow-up or attach a diagram, PDF, or CSV (Enter to send)…"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -1133,7 +1181,7 @@ function Workbench() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf"
+                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp,.pdf,application/pdf,.csv,text/csv"
                   style={{ display: "none" }}
                   onChange={handleFileSelect}
                   disabled={isRunning}
@@ -1142,7 +1190,7 @@ function Workbench() {
                 <label
                   htmlFor="workbench-file-input-active"
                   className={`composer-tool-btn ${isRunning ? "disabled" : ""}`}
-                  title="Attach engineering diagram or PDF document (PNG, JPG, WEBP, PDF up to 10MB)"
+                  title="Attach engineering diagram, PDF document, or CSV dataset (PNG, JPG, WEBP, PDF, CSV up to 10MB)"
                 >
                   <Paperclip size={15} />
                   <span>Attach file</span>

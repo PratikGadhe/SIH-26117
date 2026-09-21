@@ -1,0 +1,10 @@
+equipment_id,category,operating_hours,vibration_mm_s,temperature_c,status
+P-101,Pump,3420,2.1,64.5,NORMAL
+P-102,Pump,8950,5.8,82.3,WARNING
+P-103,Pump,1200,1.4,55.0,NORMAL
+C-201,Compressor,4500,3.2,74.1,NORMAL
+C-202,Compressor,9820,7.9,96.4,CRITICAL
+V-301,Valve,510,0.4,45.2,NORMAL
+V-302,Valve,2300,1.1,49.0,NORMAL
+F-401,Flare,6700,4.5,120.0,NORMAL
+

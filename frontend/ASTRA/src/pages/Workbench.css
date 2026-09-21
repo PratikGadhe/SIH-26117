@@ -676,6 +676,20 @@
   color: var(--text-primary);
 }
 
+.step-agent.is-tool {
+  color: var(--accent-olive);
+  font-weight: 700;
+}
+
+.timeline-step.tool-step {
+  border-left: 3px solid var(--accent-olive);
+  background: var(--bg-surface-elevated, var(--bg-surface));
+}
+
+.step-badge.tool-step-badge {
+  background: var(--accent-olive-dark, #435e2b);
+}
+
 .step-action {
   font-size: 11.5px;
   color: var(--text-secondary);

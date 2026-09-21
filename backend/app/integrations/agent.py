@@ -71,6 +71,7 @@ class AgentRunner(Protocol):
         user_query: str,
         image_path: str | None = None,
         pdf_path: str | None = None,
+        csv_path: str | None = None,
     ) -> AgentResult:
         """Execute one stateless agent request."""
 
@@ -86,6 +87,7 @@ class LangGraphAgentAdapter:
         user_query: str,
         image_path: str | None = None,
         pdf_path: str | None = None,
+        csv_path: str | None = None,
     ) -> AgentResult:
         workflow = self._workflow or _load_teammate_workflow()
         try:
@@ -93,6 +95,7 @@ class LangGraphAgentAdapter:
                 user_query=user_query,
                 image_path=image_path,
                 pdf_path=pdf_path,
+                csv_path=csv_path,
             )
         except TimeoutError as exc:
             raise AgentTimeoutError("Agent execution timed out") from exc
@@ -189,9 +192,7 @@ def _normalize_citations(value: object) -> list[AgentCitation]:
         page = str(item.get("page", "N/A"))
         distance_value = item.get("distance")
         distance = (
-            float(distance_value)
-            if isinstance(distance_value, (int, float))
-            else None
+            float(distance_value) if isinstance(distance_value, (int, float)) else None
         )
         citations.append(
             AgentCitation(
@@ -214,11 +215,7 @@ def _normalize_steps(value: object) -> list[AgentStep]:
         step = item.get("step")
         agent = item.get("agent")
         action = item.get("action")
-        if (
-            isinstance(step, int)
-            and isinstance(agent, str)
-            and isinstance(action, str)
-        ):
+        if isinstance(step, int) and isinstance(agent, str) and isinstance(action, str):
             steps.append(
                 AgentStep(
                     step=step,
