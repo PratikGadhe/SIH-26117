@@ -7,7 +7,6 @@
 
 ---
 
-## 1. Problem Statement
 
 In mission-critical industrial facilities—such as oil refineries, petrochemical complexes, thermal power stations, and defense manufacturing plants—operational personnel manage complex daily workflows across proprietary Standard Operating Procedures (SOPs), process and instrumentation diagrams (P&IDs), operational logs, and machine telemetry.
 
