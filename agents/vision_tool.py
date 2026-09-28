@@ -4,6 +4,7 @@ from collections.abc import Callable
 from functools import lru_cache
 import importlib
 from pathlib import Path
+import sys
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Protocol
 
 
@@ -133,6 +134,10 @@ def route_vision_task(
 
 @lru_cache(maxsize=1)
 def _load_vision_service() -> VisionServiceFactory:
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
     try:
         module = importlib.import_module("vision.src.vision_service")
     except Exception as exc:
